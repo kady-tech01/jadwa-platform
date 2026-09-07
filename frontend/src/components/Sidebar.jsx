@@ -1,65 +1,96 @@
-import React from 'react';
-import { Link, useLocation } from 'react-router-dom';
-import { LayoutDashboard, FolderPlus, FileText, PieChart, Settings, Sun, Moon } from 'lucide-react';
-import { useTheme } from '../context/ThemeContext';
+import React, { useState } from 'react';
+import { NavLink } from 'react-router-dom';
+import { 
+  LayoutDashboard, 
+  FolderKanban, 
+  BarChart3, 
+  Receipt, 
+  Settings, 
+  ChevronLeft, 
+  ChevronRight,
+  TrendingUp,
+  LogOut
+} from 'lucide-react';
 
 const Sidebar = () => {
-  const location = useLocation();
-  const { theme, toggleTheme } = useTheme();
+  const [isCollapsed, setIsCollapsed] = useState(false);
 
-  const navigation = [
-    { name: 'لوحة التحكم', href: '/', icon: LayoutDashboard },
-    { name: 'مشروع جديد', href: '/projects/new', icon: FolderPlus },
-    { name: 'دراسات الجدوى', href: '/projects', icon: FileText },
-    { name: 'التحليلات المالية', href: '/analytics', icon: PieChart },
-    { name: 'الإعدادات', href: '/settings', icon: Settings },
+  const toggleSidebar = () => {
+    setIsCollapsed(!isCollapsed);
+  };
+
+  const navItems = [
+    { title: 'Dashboard', path: '/dashboard', icon: LayoutDashboard },
+    { title: 'Projects', path: '/projects', icon: FolderKanban },
+    { title: 'Financial Analytics', path: '/analytics', icon: BarChart3 },
+    { title: 'Cash Flow', path: '/cashflow', icon: TrendingUp },
+    { title: 'Transactions', path: '/transactions', icon: Receipt },
+    { title: 'Settings', path: '/settings', icon: Settings },
   ];
 
   return (
-    <aside className="w-64 bg-white dark:bg-slate-950 text-slate-800 dark:text-slate-200 min-h-screen p-4 flex flex-col justify-between border-l border-slate-200 dark:border-slate-800 transition-colors duration-200">
-      <div>
-        <div className="flex items-center gap-3 px-2 py-4 border-b border-slate-200 dark:border-slate-800 mb-6">
-          <div className="w-10 h-10 rounded-lg bg-blue-600 flex items-center justify-center font-bold text-xl text-white shadow-sm">
-            جـ
-          </div>
-          <div>
-            <h1 className="font-bold text-lg leading-none text-slate-900 dark:text-white">منصة جَدْوَى</h1>
-            <span className="text-xs text-slate-500 dark:text-slate-400">Jadwa Platform</span>
-          </div>
-        </div>
+    <aside
+      className={`relative h-screen bg-slate-900 border-r border-slate-800 text-slate-300 transition-all duration-300 ease-in-out flex flex-col ${
+        isCollapsed ? 'w-20' : 'w-64'
+      }`}
+    >
+      {/* Toggle Button */}
+      <button
+        onClick={toggleSidebar}
+        className="absolute -right-3 top-8 bg-blue-600 hover:bg-blue-500 text-white rounded-full p-1.5 border-2 border-slate-900 shadow-lg transition-colors focus:outline-none"
+        aria-label="Toggle Sidebar"
+      >
+        {isCollapsed ? <ChevronRight size={16} /> : <ChevronLeft size={16} />}
+      </button>
 
-        <nav className="space-y-1">
-          {navigation.map((item) => {
-            const Icon = item.icon;
-            const isActive = location.pathname === item.href;
-            return (
-              <Link
-                key={item.name}
-                to={item.href}
-                className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all ${
-                  isActive
-                    ? 'bg-blue-600 text-white shadow-sm'
-                    : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800/60 hover:text-slate-900 dark:hover:text-white'
-                }`}
-              >
-                <Icon className="w-5 h-5" />
-                {item.name}
-              </Link>
-            );
-          })}
-        </nav>
+      {/* Brand Logo / Title */}
+      <div className="flex items-center gap-3 px-6 py-6 border-b border-slate-800/80">
+        <div className="bg-blue-600 text-white p-2 rounded-xl font-bold text-xl flex items-center justify-center shrink-0">
+          JP
+        </div>
+        {!isCollapsed && (
+          <div className="overflow-hidden whitespace-nowrap">
+            <h1 className="font-bold text-lg text-slate-50 tracking-wide">JADWA</h1>
+            <p className="text-xs text-slate-400 font-medium">Financial Platform</p>
+          </div>
+        )}
       </div>
 
-      {/* Dark/Light Toggle */}
-      <div className="pt-4 border-t border-slate-200 dark:border-slate-800">
+      {/* Navigation Links */}
+      <nav className="flex-1 px-3 py-6 space-y-1.5 overflow-y-auto">
+        {navItems.map((item) => {
+          const Icon = item.icon;
+          return (
+            <NavLink
+              key={item.path}
+              to={item.path}
+              className={({ isActive }) =>
+                `flex items-center gap-3 px-3.5 py-3 rounded-lg text-sm font-medium transition-all duration-150 ${
+                  isActive
+                    ? 'bg-blue-600 text-white shadow-md shadow-blue-600/20'
+                    : 'text-slate-400 hover:bg-slate-800/70 hover:text-slate-100'
+                }`
+              }
+              title={isCollapsed ? item.title : ''}
+            >
+              <Icon size={20} className="shrink-0" />
+              {!isCollapsed && (
+                <span className="truncate whitespace-nowrap">{item.title}</span>
+              )}
+            </NavLink>
+          );
+        })}
+      </nav>
+
+      {/* Footer / User Session */}
+      <div className="p-3 border-t border-slate-800/80">
         <button
-          onClick={toggleTheme}
-          className="w-full flex items-center justify-between px-3 py-2.5 rounded-lg text-sm font-medium text-slate-600 dark:text-slate-300 bg-slate-100 dark:bg-slate-900 hover:bg-slate-200 dark:hover:bg-slate-800 transition-colors"
+          onClick={() => console.log('Logout clicked')}
+          className="w-full flex items-center gap-3 px-3.5 py-3 rounded-lg text-sm font-medium text-slate-400 hover:bg-rose-500/10 hover:text-rose-400 transition-colors"
+          title={isCollapsed ? 'Logout' : ''}
         >
-          <div className="flex items-center gap-3">
-            {theme === 'dark' ? <Sun className="w-5 h-5 text-amber-400" /> : <Moon className="w-5 h-5 text-slate-600" />}
-            <span>{theme === 'dark' ? 'الوضع المضيء' : 'الوضع الداكن'}</span>
-          </div>
+          <LogOut size={20} className="shrink-0" />
+          {!isCollapsed && <span className="truncate whitespace-nowrap">Logout</span>}
         </button>
       </div>
     </aside>
