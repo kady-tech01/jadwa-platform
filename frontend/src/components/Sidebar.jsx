@@ -9,6 +9,8 @@ import {
   ChevronLeft, 
   ChevronRight,
   TrendingUp,
+  MessageSquare,
+  FilePlus2,
   LogOut
 } from 'lucide-react';
 
@@ -21,16 +23,18 @@ const Sidebar = () => {
 
   const navItems = [
     { title: 'Dashboard', path: '/dashboard', icon: LayoutDashboard },
-    { title: 'Projects', path: '/projects', icon: FolderKanban },
+    { title: 'Projects', path: '/projects', icon: FolderKanban, exact: true },
+    { title: 'New Feasibility', path: '/projects/new', icon: FilePlus2 },
     { title: 'Financial Analytics', path: '/analytics', icon: BarChart3 },
     { title: 'Cash Flow', path: '/cashflow', icon: TrendingUp },
     { title: 'Transactions', path: '/transactions', icon: Receipt },
+    { title: 'Feedback & Support', path: '/feedback', icon: MessageSquare },
     { title: 'Settings', path: '/settings', icon: Settings },
   ];
 
   return (
     <aside
-      className={`relative h-screen bg-slate-900 border-r border-slate-800 text-slate-300 transition-all duration-300 ease-in-out flex flex-col ${
+      className={`fixed top-0 left-0 h-screen bg-slate-900 border-r border-slate-800 text-slate-300 transition-all duration-300 ease-in-out flex flex-col z-30 ${
         isCollapsed ? 'w-20' : 'w-64'
       }`}
     >
@@ -43,8 +47,8 @@ const Sidebar = () => {
         {isCollapsed ? <ChevronRight size={16} /> : <ChevronLeft size={16} />}
       </button>
 
-      {/* Brand Logo / Title */}
-      <div className="flex items-center gap-3 px-6 py-6 border-b border-slate-800/80">
+      {/* Brand Logo */}
+      <div className="flex items-center gap-3 px-6 py-6 border-b border-slate-800/80 shrink-0">
         <div className="bg-blue-600 text-white p-2 rounded-xl font-bold text-xl flex items-center justify-center shrink-0">
           JP
         </div>
@@ -64,6 +68,7 @@ const Sidebar = () => {
             <NavLink
               key={item.path}
               to={item.path}
+              end={item.exact}
               className={({ isActive }) =>
                 `flex items-center gap-3 px-3.5 py-3 rounded-lg text-sm font-medium transition-all duration-150 ${
                   isActive
@@ -82,8 +87,8 @@ const Sidebar = () => {
         })}
       </nav>
 
-      {/* Footer / User Session */}
-      <div className="p-3 border-t border-slate-800/80">
+      {/* Footer / Logout */}
+      <div className="p-3 border-t border-slate-800/80 shrink-0">
         <button
           onClick={() => console.log('Logout clicked')}
           className="w-full flex items-center gap-3 px-3.5 py-3 rounded-lg text-sm font-medium text-slate-400 hover:bg-rose-500/10 hover:text-rose-400 transition-colors"
