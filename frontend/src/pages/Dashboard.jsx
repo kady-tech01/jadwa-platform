@@ -26,8 +26,9 @@ import {
 } from 'recharts';
 import { useNavigate } from 'react-router-dom';
 import API from '../services/api';
+import { useCurrency } from '../context/CurrencyContext'; // <--- Import useCurrency hook
 
-// Fallback mock data in case backend is offline
+// Fallback mock numeric data
 const defaultCashFlow = [
   { month: 'Jan', revenue: 4000, expenses: 2400 },
   { month: 'Feb', revenue: 5000, expenses: 2800 },
@@ -47,14 +48,15 @@ const defaultAllocation = [
 
 const Dashboard = () => {
   const navigate = useNavigate();
+  const { formatAmount } = useCurrency(); // <--- Access formatAmount helper
   const [loading, setLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState(null);
   
-  // Dashboard component states
+  // Dashboard numeric states
   const [metrics, setMetrics] = useState({
-    totalRevenue: '$55,000',
-    netProfit: '$25,200',
-    totalExpenses: '$29,800',
+    totalRevenue: 55000,
+    netProfit: 25200,
+    totalExpenses: 29800,
     activeProjects: 14,
     revenueGrowth: '+12.5%',
     profitGrowth: '+8.2%',
@@ -63,7 +65,6 @@ const Dashboard = () => {
   const [cashFlowData, setCashFlowData] = useState(defaultCashFlow);
   const [allocationData, setAllocationData] = useState(defaultAllocation);
 
-  // Fetch metrics and chart data from Django REST backend
   const fetchDashboardData = async () => {
     setLoading(true);
     setErrorMessage(null);
@@ -97,7 +98,6 @@ const Dashboard = () => {
 
   return (
     <div className="space-y-8">
-      {/* Optional backend connection notification */}
       {errorMessage && (
         <div className="flex items-center gap-3 p-4 bg-amber-500/10 border border-amber-500/20 text-amber-400 rounded-xl text-sm">
           <AlertCircle size={18} className="shrink-0" />
@@ -116,14 +116,14 @@ const Dashboard = () => {
         <div className="flex items-center gap-3">
           <button 
             onClick={fetchDashboardData}
-            className="p-2.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl border border-slate-700 transition-colors"
+            className="p-2.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl border border-slate-700 transition-colors cursor-pointer"
             title="Refresh Data"
           >
             <RefreshCw size={18} />
           </button>
           <button 
             onClick={() => navigate('/projects/new')}
-            className="inline-flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-500 text-white px-4 py-2.5 rounded-xl font-medium text-sm transition-all shadow-lg shadow-blue-600/20 active:scale-95"
+            className="inline-flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-500 text-white px-4 py-2.5 rounded-xl font-medium text-sm transition-all shadow-lg shadow-blue-600/20 active:scale-95 cursor-pointer"
           >
             <Plus size={18} />
             <span>New Feasibility Study</span>
@@ -141,7 +141,7 @@ const Dashboard = () => {
             </div>
           </div>
           <div className="mt-4 flex items-baseline justify-between">
-            <h3 className="text-2xl font-bold text-slate-50">{metrics.totalRevenue}</h3>
+            <h3 className="text-2xl font-bold text-slate-50">{formatAmount(metrics.totalRevenue)}</h3>
             <span className="inline-flex items-center text-xs font-semibold text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-full border border-emerald-500/20">
               <ArrowUpRight size={14} className="mr-0.5" /> {metrics.revenueGrowth}
             </span>
@@ -156,7 +156,7 @@ const Dashboard = () => {
             </div>
           </div>
           <div className="mt-4 flex items-baseline justify-between">
-            <h3 className="text-2xl font-bold text-slate-50">{metrics.netProfit}</h3>
+            <h3 className="text-2xl font-bold text-slate-50">{formatAmount(metrics.netProfit)}</h3>
             <span className="inline-flex items-center text-xs font-semibold text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-full border border-emerald-500/20">
               <ArrowUpRight size={14} className="mr-0.5" /> {metrics.profitGrowth}
             </span>
@@ -171,7 +171,7 @@ const Dashboard = () => {
             </div>
           </div>
           <div className="mt-4 flex items-baseline justify-between">
-            <h3 className="text-2xl font-bold text-slate-50">{metrics.totalExpenses}</h3>
+            <h3 className="text-2xl font-bold text-slate-50">{formatAmount(metrics.totalExpenses)}</h3>
             <span className="inline-flex items-center text-xs font-semibold text-rose-400 bg-rose-500/10 px-2 py-0.5 rounded-full border border-rose-500/20">
               <ArrowDownRight size={14} className="mr-0.5" /> {metrics.expenseChange}
             </span>
@@ -214,7 +214,7 @@ const Dashboard = () => {
 
           <div className="h-72 w-full">
             <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={cashFlowData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+              <AreaChart data={cashFlowData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
                 <defs>
                   <linearGradient id="colorRev" x1="0" y1="0" x2="0" y2="1">
                     <stop offset="5%" stopColor="#3B82F6" stopOpacity={0.3}/>
@@ -227,8 +227,9 @@ const Dashboard = () => {
                 </defs>
                 <CartesianGrid strokeDasharray="3 3" stroke="#1E293B" vertical={false} />
                 <XAxis dataKey="month" stroke="#64748B" fontSize={12} tickLine={false} axisLine={false} />
-                <YAxis stroke="#64748B" fontSize={12} tickLine={false} axisLine={false} />
+                <YAxis stroke="#64748B" fontSize={12} tickLine={false} axisLine={false} tickFormatter={(val) => formatAmount(val)} />
                 <Tooltip 
+                  formatter={(value) => [formatAmount(value), '']}
                   contentStyle={{ backgroundColor: '#0F172A', borderColor: '#334155', borderRadius: '12px', color: '#F8FAFC' }}
                   itemStyle={{ fontSize: '13px' }}
                 />

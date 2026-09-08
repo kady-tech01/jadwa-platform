@@ -1,16 +1,16 @@
 import axios from 'axios';
 
 const API = axios.create({
-  baseURL: 'http://127.0.0.1:8000/api/',
+  baseURL: process.env.REACT_APP_API_URL || 'http://localhost:8000/api/',
   headers: {
     'Content-Type': 'application/json',
   },
 });
 
-// Request interceptor: Inject Bearer JWT token if present
+// Attach Authorization Token to every outgoing request
 API.interceptors.request.use(
   (config) => {
-    const token = localStorage.getItem('token');
+    const token = localStorage.getItem('token') || localStorage.getItem('access_token');
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
     }
@@ -19,14 +19,17 @@ API.interceptors.request.use(
   (error) => Promise.reject(error)
 );
 
-// Response interceptor: Handle unauthorized access and token expiration
+// Handle HTTP Response Errors
 API.interceptors.response.use(
   (response) => response,
   (error) => {
-    if (error.response && error.response.status === 401) {
-      localStorage.removeItem('token');
-      if (window.location.pathname !== '/login') {
-        window.location.href = '/login';
+    if (error.response) {
+      // Clean up invalid credentials if explicitly 401 Unauthorized
+      if (error.response.status === 401) {
+        console.warn('Session expired or unauthenticated request.');
+        // Clear local credentials but avoid forceful hard redirects that cause data loss
+        localStorage.removeItem('token');
+        localStorage.removeItem('access_token');
       }
     }
     return Promise.reject(error);

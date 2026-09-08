@@ -18,38 +18,28 @@ import {
 import { useNavigate } from 'react-router-dom';
 import API from '../api/axios';
 
-const defaultProjects = [
-  {
-    id: 1,
-    title: 'E-Commerce Logistics Expansion',
-    category: 'Logistics & Supply Chain',
-    status: 'Approved',
-    initialInvestment: 120000,
-    npv: 45000,
-    irr: '18.5%',
-    createdAt: '2026-08-15',
-  },
-  {
-    id: 2,
-    title: 'Solar Farm Energy Feasibility',
-    category: 'Renewable Energy',
-    status: 'In Review',
-    initialInvestment: 350000,
-    npv: 82000,
-    irr: '22.1%',
-    createdAt: '2026-08-28',
-  },
-  {
-    id: 3,
-    title: 'SaaS Platform Market Penetration',
-    category: 'Software & IT',
-    status: 'Draft',
-    initialInvestment: 45000,
-    npv: -5000,
-    irr: '8.2%',
-    createdAt: '2026-09-02',
-  },
-];
+// Helper to normalize Django snake_case & React camelCase
+const formatProject = (proj) => {
+  if (!proj) return null;
+  return {
+    ...proj,
+    id: proj.id ?? proj.pk ?? proj._id ?? Date.now(),
+    title: proj.title || proj.name || 'Untitled Project',
+    category: proj.category || 'General Feasibility',
+    status: proj.status || 'Draft',
+    initialInvestment: 
+      proj.initialInvestment ?? 
+      proj.initial_investment ?? 
+      proj.investment ?? 
+      0,
+    npv: proj.npv ?? 0,
+    irr: proj.irr ?? 'N/A',
+    createdAt: 
+      proj.createdAt ?? 
+      proj.created_at ?? 
+      (proj.created_at_date ? String(proj.created_at_date) : 'Recent'),
+  };
+};
 
 const Projects = () => {
   const navigate = useNavigate();
@@ -65,23 +55,32 @@ const Projects = () => {
     setLoading(true);
     setErrorMessage(null);
 
-    const localProjects = JSON.parse(localStorage.getItem('custom_projects') || '[]');
+    // Retrieve local user-created projects
+    const localProjectsRaw = JSON.parse(localStorage.getItem('custom_projects') || '[]');
+    const localProjects = localProjectsRaw.map(formatProject).filter(Boolean);
 
     try {
       const response = await API.get('projects/');
-      const fetchedData = Array.isArray(response.data) 
+      const fetchedRaw = Array.isArray(response.data) 
         ? response.data 
         : response.data.results || [];
 
-      // Combine local projects + backend response
-      const combined = [...localProjects, ...fetchedData];
-      setProjects(combined.length > 0 ? combined : defaultProjects);
+      const fetchedData = fetchedRaw.map(formatProject).filter(Boolean);
+
+      // Combine local + backend user projects, avoiding duplicate IDs
+      const projectMap = new Map();
+      [...localProjects, ...fetchedData].forEach((p) => {
+        if (p && p.id) {
+          projectMap.set(String(p.id), p);
+        }
+      });
+
+      setProjects(Array.from(projectMap.values()));
     } catch (err) {
-      console.warn('Backend endpoint offline. Displaying custom and fallback project data.', err);
-      setErrorMessage('Could not connect to online server. Showing local preview data.');
+      console.warn('Backend endpoint offline. Showing local user data only.', err);
       
-      const combined = [...localProjects, ...defaultProjects];
-      setProjects(combined);
+      // If backend fails/offline, render ONLY user local storage projects
+      setProjects(localProjects);
     } finally {
       setLoading(false);
     }
@@ -106,34 +105,47 @@ const Projects = () => {
     try {
       await API.delete(`projects/${id}/`);
     } catch (err) {
-      console.warn('API delete failed; removing project from local storage.');
+      console.warn('API delete failed or offline; removing project locally.', err);
     }
 
+    // Clean up local storage
     const localProjects = JSON.parse(localStorage.getItem('custom_projects') || '[]');
     const updatedLocal = localProjects.filter((p) => String(p.id) !== String(id));
     localStorage.setItem('custom_projects', JSON.stringify(updatedLocal));
 
+    // Update state
     setProjects((prev) => prev.filter((p) => String(p.id) !== String(id)));
   };
 
   const filteredProjects = projects.filter((project) => {
-    const matchesSearch = 
-      (project.title && project.title.toLowerCase().includes(searchTerm.toLowerCase())) ||
-      (project.category && project.category.toLowerCase().includes(searchTerm.toLowerCase()));
-    const matchesStatus = statusFilter === 'All' || project.status === statusFilter;
+    const term = searchTerm.toLowerCase();
+    const titleMatch = (project.title || '').toLowerCase().includes(term);
+    const categoryMatch = (project.category || '').toLowerCase().includes(term);
+    const matchesSearch = titleMatch || categoryMatch;
+    
+    const matchesStatus = 
+      statusFilter === 'All' || 
+      (project.status || '').toLowerCase() === statusFilter.toLowerCase();
+
     return matchesSearch && matchesStatus;
   });
 
-  const totalInvestment = filteredProjects.reduce((acc, curr) => acc + (parseFloat(curr.initialInvestment) || 0), 0);
-  const totalNPV = filteredProjects.reduce((acc, curr) => acc + (parseFloat(curr.npv) || 0), 0);
+  const totalInvestment = filteredProjects.reduce(
+    (acc, curr) => acc + (Number(curr.initialInvestment) || 0), 0
+  );
+  const totalNPV = filteredProjects.reduce(
+    (acc, curr) => acc + (Number(curr.npv) || 0), 0
+  );
 
   const getStatusBadge = (status) => {
-    switch (status) {
-      case 'Approved':
+    const normalized = (status || '').toLowerCase();
+    switch (normalized) {
+      case 'approved':
         return 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20';
-      case 'In Review':
+      case 'in review':
+      case 'in_review':
         return 'bg-amber-500/10 text-amber-400 border-amber-500/20';
-      case 'Draft':
+      case 'draft':
         return 'bg-slate-500/10 text-slate-400 border-slate-500/20';
       default:
         return 'bg-blue-500/10 text-blue-400 border-blue-500/20';
@@ -236,13 +248,15 @@ const Projects = () => {
           <FolderKanban className="w-12 h-12 text-slate-600 mb-4" />
           <h3 className="text-lg font-semibold text-slate-200">No projects found</h3>
           <p className="text-sm text-slate-400 mt-1 max-w-sm">
-            Try adjusting your search criteria or create a new study to get started.
+            You haven't created any projects yet. Click "Create New Study" to create your first project.
           </p>
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {filteredProjects.map((project) => {
-            const isFeasible = (parseFloat(project.npv) || 0) >= 0;
+            const npvValue = Number(project.npv) || 0;
+            const isFeasible = npvValue >= 0;
+
             return (
               <div 
                 key={project.id}
@@ -253,7 +267,7 @@ const Projects = () => {
                   <div className="flex items-start justify-between gap-3 mb-3">
                     <div className="flex items-center gap-2 flex-wrap">
                       <span className={`text-xs font-semibold px-2.5 py-1 rounded-full border ${getStatusBadge(project.status)}`}>
-                        {project.status}
+                        {project.status || 'Draft'}
                       </span>
                       <span className={`text-[11px] font-medium px-2 py-0.5 rounded-md flex items-center gap-1 border ${
                         isFeasible 
@@ -265,12 +279,9 @@ const Projects = () => {
                       </span>
                     </div>
 
-                    <div className="relative shrink-0">
+                    <div className="relative shrink-0" onClick={(e) => e.stopPropagation()}>
                       <button 
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setActiveMenuId(activeMenuId === project.id ? null : project.id);
-                        }}
+                        onClick={() => setActiveMenuId(activeMenuId === project.id ? null : project.id)}
                         className="p-1.5 text-slate-400 hover:text-slate-200 hover:bg-slate-800 rounded-lg transition-colors"
                       >
                         <MoreVertical size={18} />
@@ -279,8 +290,7 @@ const Projects = () => {
                       {activeMenuId === project.id && (
                         <div className="absolute right-0 top-8 w-40 bg-slate-800 border border-slate-700 rounded-xl shadow-xl z-20 py-1 text-xs">
                           <button 
-                            onClick={(e) => {
-                              e.stopPropagation();
+                            onClick={() => {
                               setActiveMenuId(null);
                               navigate(`/projects/${project.id}`);
                             }}
@@ -289,8 +299,7 @@ const Projects = () => {
                             <Eye size={14} /> View Details
                           </button>
                           <button 
-                            onClick={(e) => {
-                              e.stopPropagation();
+                            onClick={() => {
                               setActiveMenuId(null);
                               navigate(`/projects/${project.id}/edit`);
                             }}
@@ -324,13 +333,15 @@ const Projects = () => {
                     <div>
                       <span className="text-[10px] uppercase font-semibold text-slate-500 block">NPV</span>
                       <span className={`text-xs font-bold mt-0.5 block ${isFeasible ? 'text-emerald-400' : 'text-rose-400'}`}>
-                        ${Number(project.npv || 0).toLocaleString()}
+                        ${npvValue.toLocaleString()}
                       </span>
                     </div>
                     <div>
                       <span className="text-[10px] uppercase font-semibold text-slate-500 block">IRR</span>
                       <span className="text-xs font-bold text-slate-200 mt-0.5 block">
-                        {project.irr ? (typeof project.irr === 'number' ? `${project.irr}%` : project.irr) : 'N/A'}
+                        {project.irr !== undefined && project.irr !== null
+                          ? (typeof project.irr === 'number' ? `${project.irr}%` : project.irr) 
+                          : 'N/A'}
                       </span>
                     </div>
                   </div>

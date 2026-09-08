@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider } from './context/AuthContext';
 import { ThemeProvider } from './context/ThemeContext';
+import { CurrencyProvider } from './context/CurrencyContext'; // <--- Import CurrencyProvider
 import PrivateRoute from './components/PrivateRoute';
 import Navbar from './components/Navbar';
 import Sidebar from './components/Sidebar';
@@ -50,123 +51,122 @@ const AppLayout = ({ children }) => {
 function App() {
   return (
     <ThemeProvider>
-      <Router>
-        <AuthProvider>
-          <Routes>
-            {/* Public Auth Routes */}
-            <Route path="/login" element={<Login />} />
-            <Route path="/register" element={<Register />} />
+      <CurrencyProvider> {/* <--- Wrap entire route tree with CurrencyProvider */}
+        <Router>
+          <AuthProvider>
+            <Routes>
+              {/* Public Auth Routes */}
+              <Route path="/login" element={<Login />} />
+              <Route path="/register" element={<Register />} />
 
-            {/* Protected App Routes */}
-            <Route
-              path="/dashboard"
-              element={
-                <PrivateRoute>
-                  <AppLayout>
-                    <Dashboard />
-                  </AppLayout>
-                </PrivateRoute>
-              }
-            />
-            <Route
-              path="/projects"
-              element={
-                <PrivateRoute>
-                  <AppLayout>
-                    <Projects />
-                  </AppLayout>
-                </PrivateRoute>
-              }
-            />
-            {/* Create Route */}
-            <Route
-              path="/projects/new"
-              element={
-                <PrivateRoute>
-                  <AppLayout>
-                    <ProjectForm />
-                  </AppLayout>
-                </PrivateRoute>
-              }
-            />
-            {/* Dynamic Details Route */}
-            <Route
-              path="/projects/:id"
-              element={
-                <PrivateRoute>
-                  <AppLayout>
-                    <ProjectDetails />
-                  </AppLayout>
-                </PrivateRoute>
-              }
-            />
-            {/* Dynamic Edit Route */}
-            <Route
-              path="/projects/:id/edit"
-              element={
-                <PrivateRoute>
-                  <AppLayout>
-                    <ProjectForm />
-                  </AppLayout>
-                </PrivateRoute>
-              }
-            />
-            <Route
-              path="/analytics"
-              element={
-                <PrivateRoute>
-                  <AppLayout>
-                    <Analytics />
-                  </AppLayout>
-                </PrivateRoute>
-              }
-            />
-            <Route
-              path="/cashflow"
-              element={
-                <PrivateRoute>
-                  <AppLayout>
-                    <CashFlow />
-                  </AppLayout>
-                </PrivateRoute>
-              }
-            />
-            <Route
-              path="/transactions"
-              element={
-                <PrivateRoute>
-                  <AppLayout>
-                    <Transactions />
-                  </AppLayout>
-                </PrivateRoute>
-              }
-            />
-            <Route
-              path="/feedback"
-              element={
-                <PrivateRoute>
-                  <AppLayout>
-                    <Feedback />
-                  </AppLayout>
-                </PrivateRoute>
-              }
-            />
-            <Route
-              path="/settings"
-              element={
-                <PrivateRoute>
-                  <AppLayout>
-                    <Settings />
-                  </AppLayout>
-                </PrivateRoute>
-              }
-            />
+              {/* Protected App Routes */}
+              <Route
+                path="/dashboard"
+                element={
+                  <PrivateRoute>
+                    <AppLayout>
+                      <Dashboard />
+                    </AppLayout>
+                  </PrivateRoute>
+                }
+              />
+              <Route
+                path="/projects"
+                element={
+                  <PrivateRoute>
+                    <AppLayout>
+                      <Projects />
+                    </AppLayout>
+                  </PrivateRoute>
+                }
+              />
+              <Route
+                path="/projects/new"
+                element={
+                  <PrivateRoute>
+                    <AppLayout>
+                      <ProjectForm />
+                    </AppLayout>
+                  </PrivateRoute>
+                }
+              />
+              <Route
+                path="/projects/:id"
+                element={
+                  <PrivateRoute>
+                    <AppLayout>
+                      <ProjectDetails />
+                    </AppLayout>
+                  </PrivateRoute>
+                }
+              />
+              <Route
+                path="/projects/:id/edit"
+                element={
+                  <PrivateRoute>
+                    <AppLayout>
+                      <ProjectForm />
+                    </AppLayout>
+                  </PrivateRoute>
+                }
+              />
+              <Route
+                path="/analytics"
+                element={
+                  <PrivateRoute>
+                    <AppLayout>
+                      <Analytics />
+                    </AppLayout>
+                  </PrivateRoute>
+                }
+              />
+              <Route
+                path="/cashflow"
+                element={
+                  <PrivateRoute>
+                    <AppLayout>
+                      <CashFlow />
+                    </AppLayout>
+                  </PrivateRoute>
+                }
+              />
+              <Route
+                path="/transactions"
+                element={
+                  <PrivateRoute>
+                    <AppLayout>
+                      <Transactions />
+                    </AppLayout>
+                  </PrivateRoute>
+                }
+              />
+              <Route
+                path="/feedback"
+                element={
+                  <PrivateRoute>
+                    <AppLayout>
+                      <Feedback />
+                    </AppLayout>
+                  </PrivateRoute>
+                }
+              />
+              <Route
+                path="/settings"
+                element={
+                  <PrivateRoute>
+                    <AppLayout>
+                      <Settings />
+                    </AppLayout>
+                  </PrivateRoute>
+                }
+              />
 
-            {/* Default Catch-All Route */}
-            <Route path="*" element={<Navigate to="/dashboard" replace />} />
-          </Routes>
-        </AuthProvider>
-      </Router>
+              {/* Default Catch-All Route */}
+              <Route path="*" element={<Navigate to="/dashboard" replace />} />
+            </Routes>
+          </AuthProvider>
+        </Router>
+      </CurrencyProvider>
     </ThemeProvider>
   );
 }
