@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { NavLink } from 'react-router-dom';
 import { 
   LayoutDashboard, 
@@ -14,9 +14,7 @@ import {
   LogOut
 } from 'lucide-react';
 
-const Sidebar = () => {
-  const [isCollapsed, setIsCollapsed] = useState(false);
-
+const Sidebar = ({ isCollapsed, setIsCollapsed }) => {
   const toggleSidebar = () => {
     setIsCollapsed(!isCollapsed);
   };
@@ -41,7 +39,7 @@ const Sidebar = () => {
       {/* Toggle Button */}
       <button
         onClick={toggleSidebar}
-        className="absolute -right-3 top-8 bg-blue-600 hover:bg-blue-500 text-white rounded-full p-1.5 border-2 border-slate-900 shadow-lg transition-colors focus:outline-none"
+        className="absolute -right-3 top-8 bg-blue-600 hover:bg-blue-500 text-white rounded-full p-1.5 border-2 border-slate-900 shadow-lg transition-colors focus:outline-none cursor-pointer"
         aria-label="Toggle Sidebar"
       >
         {isCollapsed ? <ChevronRight size={16} /> : <ChevronLeft size={16} />}
@@ -91,7 +89,7 @@ const Sidebar = () => {
       <div className="p-3 border-t border-slate-800/80 shrink-0">
         <button
           onClick={() => console.log('Logout clicked')}
-          className="w-full flex items-center gap-3 px-3.5 py-3 rounded-lg text-sm font-medium text-slate-400 hover:bg-rose-500/10 hover:text-rose-400 transition-colors"
+          className="w-full flex items-center gap-3 px-3.5 py-3 rounded-lg text-sm font-medium text-slate-400 hover:bg-rose-500/10 hover:text-rose-400 transition-colors cursor-pointer"
           title={isCollapsed ? 'Logout' : ''}
         >
           <LogOut size={20} className="shrink-0" />

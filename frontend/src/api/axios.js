@@ -9,7 +9,7 @@ const api = axios.create({
   },
 });
 
-// إضافة الـ Access Token تلقائياً في الترويسة (Header)
+// Automatically append Bearer token to request headers
 api.interceptors.request.use(
   (config) => {
     const token = localStorage.getItem('access_token');
@@ -19,6 +19,18 @@ api.interceptors.request.use(
     return config;
   },
   (error) => Promise.reject(error)
+);
+
+// Handle expired or invalid tokens automatically
+api.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    if (error.response && error.response.status === 401) {
+      localStorage.removeItem('access_token');
+      localStorage.removeItem('refresh_token');
+    }
+    return Promise.reject(error);
+  }
 );
 
 export default api;
