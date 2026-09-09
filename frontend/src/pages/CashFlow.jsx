@@ -34,7 +34,6 @@ const CashFlow = () => {
   const [errorMessage, setErrorMessage] = useState(null);
   const [successMessage, setSuccessMessage] = useState(null);
 
-  // User project data state (defaults to empty array)
   const [projections, setProjections] = useState([]);
   const [summary, setSummary] = useState({
     totalInflow: 0,
@@ -43,7 +42,6 @@ const CashFlow = () => {
     paybackYear: 'N/A',
   });
 
-  // Modal / Form state for entering a new cash transaction entry
   const [showAddModal, setShowAddModal] = useState(false);
   const [newEntry, setNewEntry] = useState({
     year: '',
@@ -51,7 +49,76 @@ const CashFlow = () => {
     outflow: '',
   });
 
-  // Calculate summary metrics dynamically from projections list
+  // Utility to normalize items coming from different backend naming conventions
+  const normalizeProjections = (items) => {
+    if (!Array.isArray(items)) return [];
+
+    let cum = 0;
+    return items.map((item, idx) => {
+      const inflow = parseFloat(item.inflow ?? item.annual_revenue ?? item.revenue ?? 0) || 0;
+      const outflow = parseFloat(item.outflow ?? item.annual_opex ?? item.opex ?? item.expenses ?? 0) || 0;
+      const net = item.net !== undefined ? parseFloat(item.net) : inflow - outflow;
+      
+      cum += net;
+      const cumulative = item.cumulative !== undefined ? parseFloat(item.cumulative) : cum;
+
+      return {
+        id: item.id || idx,
+        year: item.year || item.period || `Year ${idx + 1}`,
+        inflow,
+        outflow,
+        net,
+        cumulative,
+      };
+    });
+  };
+
+  // Helper to construct cash flow projections from local project data if API returns empty
+  const buildProjectionsFromProjects = (projects) => {
+    if (!projects || projects.length === 0) return [];
+
+    // Sum overall baseline capital, revenue, and opex across all active project studies
+    const totalCapEx = projects.reduce((sum, p) => 
+      sum + (parseFloat(p.initial_investment ?? p.initialCapital ?? 0) || 0), 0);
+    const totalAnnualRev = projects.reduce((sum, p) => 
+      sum + (parseFloat(p.annual_revenue ?? p.annualRevenue ?? 0) || 0), 0);
+    const totalAnnualOpex = projects.reduce((sum, p) => 
+      sum + (parseFloat(p.annual_opex ?? p.annualExpenses ?? 0) || 0), 0);
+
+    let cumBalance = -totalCapEx;
+
+    const timeline = [
+      {
+        year: 'Year 0 (Initial)',
+        inflow: 0,
+        outflow: totalCapEx,
+        net: -totalCapEx,
+        cumulative: cumBalance,
+      }
+    ];
+
+    for (let yr = 1; yr <= 5; yr++) {
+      // 3% growth model for revenues and 2% for opex
+      const factorRev = Math.pow(1.03, yr - 1);
+      const factorOpex = Math.pow(1.02, yr - 1);
+
+      const inf = Math.round(totalAnnualRev * factorRev);
+      const out = Math.round(totalAnnualOpex * factorOpex);
+      const net = inf - out;
+      cumBalance += net;
+
+      timeline.push({
+        year: `Year ${yr}`,
+        inflow: inf,
+        outflow: out,
+        net: net,
+        cumulative: cumBalance,
+      });
+    }
+
+    return timeline;
+  };
+
   const calculateSummary = (items) => {
     if (!items || items.length === 0) {
       return {
@@ -64,10 +131,9 @@ const CashFlow = () => {
 
     const totalInflow = items.reduce((sum, item) => sum + (parseFloat(item.inflow) || 0), 0);
     const totalOutflow = items.reduce((sum, item) => sum + (parseFloat(item.outflow) || 0), 0);
-    const netCashFlow = totalInflow - totalOutflow;
+    const netCashFlow = items.length > 0 ? items[items.length - 1].cumulative : totalInflow - totalOutflow;
 
-    // Find the first period where cumulative cash flow turns positive
-    const paybackItem = items.find((item) => (item.cumulative ?? (item.inflow - item.outflow)) >= 0);
+    const paybackItem = items.find((item) => item.cumulative >= 0 && item.year !== 'Year 0 (Initial)');
     const paybackYear = paybackItem ? paybackItem.year : 'Not Reached';
 
     return {
@@ -78,35 +144,46 @@ const CashFlow = () => {
     };
   };
 
-  // Fetch Cash Flow projections from Django REST backend
   const fetchCashFlowData = useCallback(async () => {
     setLoading(true);
     setErrorMessage(null);
+
+    let loadedProjections = [];
+
     try {
       const response = await API.get('cashflow/');
       const data = response.data;
-
-      const projectProjections = Array.isArray(data) ? data : (data.projections || []);
-      setProjections(projectProjections);
-
-      if (data.summary) {
-        setSummary(data.summary);
-      } else {
-        setSummary(calculateSummary(projectProjections));
+      const rawProjections = Array.isArray(data) ? data : (data.projections || []);
+      
+      if (rawProjections.length > 0) {
+        loadedProjections = normalizeProjections(rawProjections);
       }
     } catch (err) {
-      console.error('Error fetching cash flow data:', err);
-      setErrorMessage('Could not load project cash flow data. Please check connection or try again.');
-    } finally {
-      setLoading(false);
+      console.warn('Backend /cashflow/ endpoint not populated or unreachable. Checking projects...', err);
     }
+
+    // Fallback if no specific cash flow records exist
+    if (loadedProjections.length === 0) {
+      try {
+        const projRes = await API.get('projects/');
+        const projectList = Array.isArray(projRes.data) ? projRes.data : (projRes.data.results || []);
+        loadedProjections = buildProjectionsFromProjects(projectList);
+      } catch (projErr) {
+        console.warn('API project request failed. Checking local storage fallback...', projErr);
+        const localProjects = JSON.parse(localStorage.getItem('jadwa_projects') || '[]');
+        loadedProjections = buildProjectionsFromProjects(localProjects);
+      }
+    }
+
+    setProjections(loadedProjections);
+    setSummary(calculateSummary(loadedProjections));
+    setLoading(false);
   }, []);
 
   useEffect(() => {
     fetchCashFlowData();
   }, [fetchCashFlowData]);
 
-  // Handle adding a new projection entry
   const handleAddEntry = async (e) => {
     e.preventDefault();
     setSaving(true);
@@ -117,9 +194,8 @@ const CashFlow = () => {
     const outflowNum = parseFloat(newEntry.outflow) || 0;
     const netNum = inflowNum - outflowNum;
 
-    // Calculate cumulative value based on previous entries
     const lastCumulative = projections.length > 0 
-      ? (projections[projections.length - 1].cumulative ?? 0)
+      ? projections[projections.length - 1].cumulative 
       : 0;
 
     const formattedEntry = {
@@ -132,7 +208,9 @@ const CashFlow = () => {
 
     try {
       const response = await API.post('cashflow/', formattedEntry);
-      const savedEntry = response.data || formattedEntry;
+      const savedEntry = response.data 
+        ? normalizeProjections([response.data])[0] 
+        : formattedEntry;
 
       const updatedProjections = [...projections, savedEntry];
       setProjections(updatedProjections);
@@ -142,14 +220,18 @@ const CashFlow = () => {
       setShowAddModal(false);
       setNewEntry({ year: '', inflow: '', outflow: '' });
     } catch (err) {
-      console.error('Failed to post cash flow entry:', err);
-      setErrorMessage('Failed to save the cash flow entry to backend.');
+      console.warn('Posting to /cashflow/ failed. Adding locally to current view.', err);
+      const updatedProjections = [...projections, formattedEntry];
+      setProjections(updatedProjections);
+      setSummary(calculateSummary(updatedProjections));
+      setSuccessMessage('New cash flow projection period added locally.');
+      setShowAddModal(false);
+      setNewEntry({ year: '', inflow: '', outflow: '' });
     } finally {
       setSaving(false);
     }
   };
 
-  // CSV Export Functionality for User Data
   const exportCSV = () => {
     if (projections.length === 0) return;
     const headers = ['Timeline Period', 'Inflows', 'Outflows', 'Net Flow', 'Cumulative Balance'];
@@ -178,7 +260,6 @@ const CashFlow = () => {
 
   return (
     <div className="space-y-8">
-      {/* Backend alert notification */}
       {errorMessage && (
         <div className="flex items-center gap-3 p-4 bg-amber-500/10 border border-amber-500/20 text-amber-400 rounded-xl text-sm">
           <AlertCircle size={18} className="shrink-0" />
@@ -193,7 +274,7 @@ const CashFlow = () => {
         </div>
       )}
 
-      {/* Header section */}
+      {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-slate-50 tracking-tight">Cash Flow Analysis</h1>
@@ -219,7 +300,7 @@ const CashFlow = () => {
         </div>
       </div>
 
-      {/* Cash Flow Summary KPI Cards */}
+      {/* KPI Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
         <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-sm">
           <div className="flex items-center justify-between text-slate-400 mb-2">
@@ -306,7 +387,7 @@ const CashFlow = () => {
         )}
       </div>
 
-      {/* Cash Flow Data Table */}
+      {/* Cash Flow Table */}
       <div className="bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden shadow-sm">
         <div className="p-6 border-b border-slate-800 flex items-center justify-between">
           <h2 className="text-base font-bold text-slate-100">Detailed Projection Schedule</h2>
@@ -334,7 +415,7 @@ const CashFlow = () => {
               </thead>
               <tbody className="divide-y divide-slate-800/60">
                 {projections.map((row, idx) => (
-                  <tr key={idx} className="hover:bg-slate-800/30 transition-colors">
+                  <tr key={row.id || idx} className="hover:bg-slate-800/30 transition-colors">
                     <td className="px-6 py-4 font-medium text-slate-100 flex items-center gap-2">
                       <Calendar size={14} className="text-slate-500" />
                       {row.year}
