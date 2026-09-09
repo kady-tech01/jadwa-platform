@@ -40,6 +40,8 @@ INSTALLED_APPS = [
     'apps.authentication',
     'apps.projects',
     'apps.analytics',
+    'apps.feedback',
+
 ]
 
 MIDDLEWARE = [

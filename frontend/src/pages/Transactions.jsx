@@ -1,9 +1,8 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { 
   ArrowUpRight, 
   ArrowDownLeft, 
   Search, 
-  Filter, 
   Plus, 
   Download, 
   Loader2, 
@@ -14,6 +13,7 @@ import {
   DollarSign
 } from 'lucide-react';
 import API from '../services/api';
+import { useCurrency } from '../context/CurrencyContext';
 
 // Fallback initial transaction records for offline or initial state
 const defaultTransactions = [
@@ -26,6 +26,7 @@ const defaultTransactions = [
 ];
 
 const Transactions = () => {
+  const { formatAmount } = useCurrency();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [errorMessage, setErrorMessage] = useState(null);
@@ -50,7 +51,7 @@ const Transactions = () => {
   });
 
   // Fetch Transaction Ledger from Django REST backend
-  const fetchTransactions = async () => {
+  const fetchTransactions = useCallback(async () => {
     setLoading(true);
     setErrorMessage(null);
     try {
@@ -66,11 +67,11 @@ const Transactions = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
   useEffect(() => {
     fetchTransactions();
-  }, []);
+  }, [fetchTransactions]);
 
   // Filtered transactions computed property
   const filteredTransactions = useMemo(() => {
@@ -183,14 +184,14 @@ const Transactions = () => {
         <div className="flex items-center gap-3">
           <button 
             onClick={fetchTransactions}
-            className="p-2.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl border border-slate-700 transition-colors"
+            className="p-2.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl border border-slate-700 transition-colors cursor-pointer"
             title="Refresh Ledger"
           >
             <RefreshCw size={18} />
           </button>
           <button 
             onClick={() => setShowAddModal(true)}
-            className="inline-flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-500 text-white px-4 py-2.5 rounded-xl font-medium text-sm transition-all shadow-lg shadow-blue-600/20 active:scale-95"
+            className="inline-flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-500 text-white px-4 py-2.5 rounded-xl font-medium text-sm transition-all shadow-lg shadow-blue-600/20 active:scale-95 cursor-pointer"
           >
             <Plus size={18} />
             <span>Record Transaction</span>
@@ -200,7 +201,7 @@ const Transactions = () => {
 
       {/* Overview Metrics Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
-        <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5">
+        <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-sm">
           <div className="flex items-center justify-between text-slate-400 mb-2">
             <span className="text-xs font-semibold uppercase tracking-wider">Recorded Operations</span>
             <Receipt size={20} className="text-blue-400" />
@@ -209,38 +210,38 @@ const Transactions = () => {
           <p className="text-[11px] text-slate-400 mt-1">Total entries log</p>
         </div>
 
-        <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5">
+        <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-sm">
           <div className="flex items-center justify-between text-slate-400 mb-2">
             <span className="text-xs font-semibold uppercase tracking-wider">Total Inflow</span>
             <ArrowDownLeft size={20} className="text-emerald-400" />
           </div>
-          <h3 className="text-2xl font-bold text-emerald-400">${metrics.totalIncome.toLocaleString()}</h3>
+          <h3 className="text-2xl font-bold text-emerald-400">{formatAmount(metrics.totalIncome)}</h3>
           <p className="text-[11px] text-emerald-400/80 mt-1">Gross revenues & funding</p>
         </div>
 
-        <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5">
+        <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-sm">
           <div className="flex items-center justify-between text-slate-400 mb-2">
             <span className="text-xs font-semibold uppercase tracking-wider">Total Outflow</span>
             <ArrowUpRight size={20} className="text-rose-400" />
           </div>
-          <h3 className="text-2xl font-bold text-rose-400">${metrics.totalExpense.toLocaleString()}</h3>
+          <h3 className="text-2xl font-bold text-rose-400">{formatAmount(metrics.totalExpense)}</h3>
           <p className="text-[11px] text-rose-400/80 mt-1">Operational expenditure</p>
         </div>
 
-        <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5">
+        <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-sm">
           <div className="flex items-center justify-between text-slate-400 mb-2">
             <span className="text-xs font-semibold uppercase tracking-wider">Net Position</span>
             <DollarSign size={20} className="text-purple-400" />
           </div>
           <h3 className={`text-2xl font-bold ${metrics.netBalance >= 0 ? 'text-blue-400' : 'text-rose-400'}`}>
-            ${metrics.netBalance.toLocaleString()}
+            {formatAmount(metrics.netBalance)}
           </h3>
           <p className="text-[11px] text-purple-400 mt-1">Net surplus cash balance</p>
         </div>
       </div>
 
       {/* Filter and Search Controls Bar */}
-      <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 flex flex-col md:flex-row items-center justify-between gap-4">
+      <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 flex flex-col md:flex-row items-center justify-between gap-4 shadow-sm">
         {/* Search Input */}
         <div className="relative w-full md:w-80">
           <Search size={18} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-500" />
@@ -259,7 +260,7 @@ const Transactions = () => {
           <div className="flex bg-slate-800 p-1 rounded-xl border border-slate-700">
             <button
               onClick={() => setTypeFilter('all')}
-              className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+              className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors cursor-pointer ${
                 typeFilter === 'all' ? 'bg-blue-600 text-white' : 'text-slate-400 hover:text-slate-200'
               }`}
             >
@@ -267,7 +268,7 @@ const Transactions = () => {
             </button>
             <button
               onClick={() => setTypeFilter('income')}
-              className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+              className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors cursor-pointer ${
                 typeFilter === 'income' ? 'bg-emerald-600 text-white' : 'text-slate-400 hover:text-slate-200'
               }`}
             >
@@ -275,7 +276,7 @@ const Transactions = () => {
             </button>
             <button
               onClick={() => setTypeFilter('expense')}
-              className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+              className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors cursor-pointer ${
                 typeFilter === 'expense' ? 'bg-rose-600 text-white' : 'text-slate-400 hover:text-slate-200'
               }`}
             >
@@ -288,7 +289,7 @@ const Transactions = () => {
             <select
               value={categoryFilter}
               onChange={(e) => setCategoryFilter(e.target.value)}
-              className="w-full bg-slate-800 border border-slate-700 text-slate-300 px-3 py-2 rounded-xl text-xs font-medium focus:outline-none focus:border-blue-500"
+              className="w-full bg-slate-800 border border-slate-700 text-slate-300 px-3 py-2 rounded-xl text-xs font-medium focus:outline-none focus:border-blue-500 cursor-pointer"
             >
               <option value="all">All Categories</option>
               {categoriesList.map((cat, idx) => (
@@ -300,10 +301,10 @@ const Transactions = () => {
       </div>
 
       {/* Transactions Table */}
-      <div className="bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden">
+      <div className="bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden shadow-sm">
         <div className="p-6 border-b border-slate-800 flex items-center justify-between">
           <h2 className="text-base font-bold text-slate-100">Transaction History</h2>
-          <button className="inline-flex items-center gap-2 text-xs font-medium text-slate-300 hover:text-white bg-slate-800 hover:bg-slate-700 px-3 py-1.5 rounded-lg transition-colors border border-slate-700">
+          <button className="inline-flex items-center gap-2 text-xs font-medium text-slate-300 hover:text-white bg-slate-800 hover:bg-slate-700 px-3 py-1.5 rounded-lg transition-colors border border-slate-700 cursor-pointer">
             <Download size={14} /> Export CSV
           </button>
         </div>
@@ -316,7 +317,7 @@ const Transactions = () => {
                 <th className="px-6 py-3.5">Category</th>
                 <th className="px-6 py-3.5">Date</th>
                 <th className="px-6 py-3.5">Type</th>
-                <th className="px-6 py-3.5 text-right">Amount ($)</th>
+                <th className="px-6 py-3.5 text-right">Amount</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-800/60">
@@ -350,7 +351,7 @@ const Transactions = () => {
                     <td className={`px-6 py-4 text-right font-bold text-sm ${
                       tx.type === 'income' ? 'text-emerald-400' : 'text-rose-400'
                     }`}>
-                      {tx.type === 'income' ? '+' : '-'}${Number(tx.amount).toLocaleString()}
+                      {tx.type === 'income' ? '+' : '-'}{formatAmount(tx.amount)}
                     </td>
                   </tr>
                 ))
@@ -380,7 +381,7 @@ const Transactions = () => {
                   required
                   placeholder="e.g. Server Renewal Payment"
                   value={newTransaction.title}
-                  onChange={(e) => setNewTransaction({...newTransaction, title: e.target.value})}
+                  onChange={(e) => setNewTransaction({ ...newTransaction, title: e.target.value })}
                   className="w-full px-3.5 py-2 bg-slate-800 border border-slate-700 rounded-xl text-slate-100 text-sm focus:outline-none focus:border-blue-500"
                 />
               </div>
@@ -390,8 +391,8 @@ const Transactions = () => {
                   <label className="block text-xs font-medium text-slate-300 mb-1">Type</label>
                   <select
                     value={newTransaction.type}
-                    onChange={(e) => setNewTransaction({...newTransaction, type: e.target.value})}
-                    className="w-full px-3.5 py-2 bg-slate-800 border border-slate-700 rounded-xl text-slate-100 text-sm focus:outline-none focus:border-blue-500"
+                    onChange={(e) => setNewTransaction({ ...newTransaction, type: e.target.value })}
+                    className="w-full px-3.5 py-2 bg-slate-800 border border-slate-700 rounded-xl text-slate-100 text-sm focus:outline-none focus:border-blue-500 cursor-pointer"
                   >
                     <option value="expense">Expense</option>
                     <option value="income">Income</option>
@@ -405,7 +406,7 @@ const Transactions = () => {
                     required
                     placeholder="e.g. Marketing"
                     value={newTransaction.category}
-                    onChange={(e) => setNewTransaction({...newTransaction, category: e.target.value})}
+                    onChange={(e) => setNewTransaction({ ...newTransaction, category: e.target.value })}
                     className="w-full px-3.5 py-2 bg-slate-800 border border-slate-700 rounded-xl text-slate-100 text-sm focus:outline-none focus:border-blue-500"
                   />
                 </div>
@@ -413,13 +414,13 @@ const Transactions = () => {
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-xs font-medium text-slate-300 mb-1">Amount ($)</label>
+                  <label className="block text-xs font-medium text-slate-300 mb-1">Amount</label>
                   <input 
                     type="number" 
                     required
                     placeholder="0.00"
                     value={newTransaction.amount}
-                    onChange={(e) => setNewTransaction({...newTransaction, amount: e.target.value})}
+                    onChange={(e) => setNewTransaction({ ...newTransaction, amount: e.target.value })}
                     className="w-full px-3.5 py-2 bg-slate-800 border border-slate-700 rounded-xl text-slate-100 text-sm focus:outline-none focus:border-blue-500"
                   />
                 </div>
@@ -430,7 +431,7 @@ const Transactions = () => {
                     type="date" 
                     required
                     value={newTransaction.date}
-                    onChange={(e) => setNewTransaction({...newTransaction, date: e.target.value})}
+                    onChange={(e) => setNewTransaction({ ...newTransaction, date: e.target.value })}
                     className="w-full px-3.5 py-2 bg-slate-800 border border-slate-700 rounded-xl text-slate-100 text-sm focus:outline-none focus:border-blue-500"
                   />
                 </div>
@@ -440,14 +441,14 @@ const Transactions = () => {
                 <button 
                   type="button" 
                   onClick={() => setShowAddModal(false)}
-                  className="px-4 py-2 text-sm text-slate-400 hover:text-slate-200"
+                  className="px-4 py-2 text-sm text-slate-400 hover:text-slate-200 cursor-pointer"
                 >
                   Cancel
                 </button>
                 <button 
                   type="submit" 
                   disabled={saving}
-                  className="inline-flex items-center gap-2 bg-blue-600 hover:bg-blue-500 text-white px-4 py-2 rounded-xl text-sm font-medium transition-all"
+                  className="inline-flex items-center gap-2 bg-blue-600 hover:bg-blue-500 text-white px-4 py-2 rounded-xl text-sm font-medium transition-all cursor-pointer"
                 >
                   {saving && <Loader2 size={14} className="animate-spin" />}
                   <span>Save Record</span>

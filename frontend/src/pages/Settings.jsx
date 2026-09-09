@@ -1,80 +1,104 @@
 import React, { useState, useEffect } from 'react';
 import { 
   User, 
-  ShieldCheck, 
-  Bell, 
   Globe, 
   Sliders, 
-  Key, 
   Save, 
   Loader2, 
   CheckCircle2, 
-  AlertCircle,
-  Database,
-  Moon
+  AlertCircle
 } from 'lucide-react';
 import API from '../services/api';
 
 const Settings = () => {
-  const [activeTab, setActiveTab] = useState('profile'); // 'profile' | 'security' | 'preferences' | 'system'
+  const [activeTab, setActiveTab] = useState('profile'); // 'profile' | 'preferences' | 'system'
+  const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [successMessage, setSuccessMessage] = useState(null);
   const [errorMessage, setErrorMessage] = useState(null);
 
-  // Profile Settings State
+  // Initial States
   const [profile, setProfile] = useState({
-    fullName: 'Khadidja Mechara',
-    email: 'khadidja@example.com',
-    role: 'Financial Manager & Lead Developer',
-    organization: 'École Supérieure d\'Administration des Affaires',
-    bio: 'Specializing in financial operations management, web platforms, and dynamic analytical systems.',
+    fullName: '',
+    email: '',
+    role: '',
+    organization: '',
+    bio: '',
   });
 
-  // Security Settings State
-  const [security, setSecurity] = useState({
-    currentPassword: '',
-    newPassword: '',
-    confirmPassword: '',
-    enable2FA: false,
-  });
-
-  // Preferences & System Settings State
   const [preferences, setPreferences] = useState({
-    currency: 'DZD', // DZD | USD | EUR
-    language: 'ar',
+    currency: 'USD',
+    language: 'en',
     emailNotifications: true,
     weeklyReport: true,
     darkMode: true,
     autoBackup: true,
   });
 
-  // Handle saving general configuration settings
+  // Fetch current user details on component mount
+  useEffect(() => {
+    const fetchUserData = async () => {
+      setLoading(true);
+      try {
+        const response = await API.get('settings/');
+        const data = response.data;
+
+        if (data.profile) {
+          setProfile({
+            fullName: data.profile.fullName || '',
+            email: data.profile.email || '',
+            role: data.profile.role || '',
+            organization: data.profile.organization || '',
+            bio: data.profile.bio || '',
+          });
+        }
+
+        if (data.preferences) {
+          setPreferences((prev) => ({
+            ...prev,
+            ...data.preferences,
+          }));
+        }
+      } catch (err) {
+        console.warn('Could not fetch user data from API, attempting local fallback.', err);
+        
+        const storedUser = localStorage.getItem('user');
+        if (storedUser) {
+          try {
+            const parsedUser = JSON.parse(storedUser);
+            setProfile((prev) => ({
+              ...prev,
+              fullName: parsedUser.fullName || parsedUser.name || prev.fullName,
+              email: parsedUser.email || prev.email,
+              role: parsedUser.role || prev.role,
+              organization: parsedUser.organization || prev.organization,
+            }));
+          } catch (e) {
+            console.error('Failed to parse cached user data', e);
+          }
+        }
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchUserData();
+  }, []);
+
   const handleSaveSettings = async (e) => {
     e.preventDefault();
     setSaving(true);
     setSuccessMessage(null);
     setErrorMessage(null);
 
-    // Validate password match if updating security tab
-    if (activeTab === 'security' && security.newPassword) {
-      if (security.newPassword !== security.confirmPassword) {
-        setErrorMessage('New password and confirmation do not match.');
-        setSaving(false);
-        return;
-      }
-    }
-
     const payload = {
       profile,
-      security: { enable2FA: security.enable2FA },
       preferences,
     };
 
     try {
       await API.post('settings/', payload);
       setSuccessMessage('Settings updated successfully!');
-      // Clear sensitive password fields after save
-      setSecurity((prev) => ({ ...prev, currentPassword: '', newPassword: '', confirmPassword: '' }));
     } catch (err) {
       console.warn('Backend endpoint unavailable. Changes persisted in local state.', err);
       setSuccessMessage('Settings saved locally for current session.');
@@ -82,6 +106,15 @@ const Settings = () => {
       setSaving(false);
     }
   };
+
+  if (loading) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[400px] text-slate-400 space-y-3">
+        <Loader2 size={32} className="animate-spin text-blue-500" />
+        <p className="text-sm">Loading user account details...</p>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-8 max-w-6xl mx-auto">
@@ -102,17 +135,18 @@ const Settings = () => {
 
       {/* Page Header */}
       <div>
-        <h1 className="text-2xl font-bold text-slate-50 tracking-tight">System & Account Settings</h1>
+        <h1 className="text-2xl font-bold text-slate-50 tracking-tight">Account & System Settings</h1>
         <p className="text-sm text-slate-400 mt-1">
-          Manage your account credentials, financial preferences, security protocols, and system defaults.
+          Manage your account profile, preferences, and system defaults.
         </p>
       </div>
 
-      {/* Tabs Navigation Bar */}
+      {/* Navigation Tabs */}
       <div className="flex flex-wrap gap-2 border-b border-slate-800 pb-3">
         <button
+          type="button"
           onClick={() => setActiveTab('profile')}
-          className={`inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-semibold transition-all ${
+          className={`inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-semibold transition-all cursor-pointer ${
             activeTab === 'profile'
               ? 'bg-blue-600 text-white shadow-lg shadow-blue-600/20'
               : 'bg-slate-900 text-slate-400 hover:text-slate-200 border border-slate-800'
@@ -123,20 +157,9 @@ const Settings = () => {
         </button>
 
         <button
-          onClick={() => setActiveTab('security')}
-          className={`inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-semibold transition-all ${
-            activeTab === 'security'
-              ? 'bg-blue-600 text-white shadow-lg shadow-blue-600/20'
-              : 'bg-slate-900 text-slate-400 hover:text-slate-200 border border-slate-800'
-          }`}
-        >
-          <ShieldCheck size={16} />
-          <span>Security & Auth</span>
-        </button>
-
-        <button
+          type="button"
           onClick={() => setActiveTab('preferences')}
-          className={`inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-semibold transition-all ${
+          className={`inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-semibold transition-all cursor-pointer ${
             activeTab === 'preferences'
               ? 'bg-blue-600 text-white shadow-lg shadow-blue-600/20'
               : 'bg-slate-900 text-slate-400 hover:text-slate-200 border border-slate-800'
@@ -147,8 +170,9 @@ const Settings = () => {
         </button>
 
         <button
+          type="button"
           onClick={() => setActiveTab('system')}
-          className={`inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-semibold transition-all ${
+          className={`inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-semibold transition-all cursor-pointer ${
             activeTab === 'system'
               ? 'bg-blue-600 text-white shadow-lg shadow-blue-600/20'
               : 'bg-slate-900 text-slate-400 hover:text-slate-200 border border-slate-800'
@@ -159,9 +183,9 @@ const Settings = () => {
         </button>
       </div>
 
-      {/* Main Settings Form Panel */}
+      {/* Main Form */}
       <form onSubmit={handleSaveSettings} className="bg-slate-900 border border-slate-800 rounded-2xl p-6 md:p-8 space-y-6">
-        {/* Tab 1: Profile Information */}
+        {/* Tab 1: Profile */}
         {activeTab === 'profile' && (
           <div className="space-y-6">
             <h2 className="text-base font-bold text-slate-100 flex items-center gap-2">
@@ -176,6 +200,7 @@ const Settings = () => {
                   type="text"
                   value={profile.fullName}
                   onChange={(e) => setProfile({ ...profile, fullName: e.target.value })}
+                  placeholder="John Doe"
                   className="w-full px-4 py-2.5 bg-slate-800 border border-slate-700 rounded-xl text-slate-100 text-sm focus:outline-none focus:border-blue-500"
                 />
               </div>
@@ -186,6 +211,7 @@ const Settings = () => {
                   type="email"
                   value={profile.email}
                   onChange={(e) => setProfile({ ...profile, email: e.target.value })}
+                  placeholder="user@organization.com"
                   className="w-full px-4 py-2.5 bg-slate-800 border border-slate-700 rounded-xl text-slate-100 text-sm focus:outline-none focus:border-blue-500"
                 />
               </div>
@@ -196,6 +222,7 @@ const Settings = () => {
                   type="text"
                   value={profile.role}
                   onChange={(e) => setProfile({ ...profile, role: e.target.value })}
+                  placeholder="Developer / Manager"
                   className="w-full px-4 py-2.5 bg-slate-800 border border-slate-700 rounded-xl text-slate-100 text-sm focus:outline-none focus:border-blue-500"
                 />
               </div>
@@ -206,6 +233,7 @@ const Settings = () => {
                   type="text"
                   value={profile.organization}
                   onChange={(e) => setProfile({ ...profile, organization: e.target.value })}
+                  placeholder="Organization Name"
                   className="w-full px-4 py-2.5 bg-slate-800 border border-slate-700 rounded-xl text-slate-100 text-sm focus:outline-none focus:border-blue-500"
                 />
               </div>
@@ -217,89 +245,32 @@ const Settings = () => {
                 rows={3}
                 value={profile.bio}
                 onChange={(e) => setProfile({ ...profile, bio: e.target.value })}
+                placeholder="Brief description about your role or specialization..."
                 className="w-full px-4 py-2.5 bg-slate-800 border border-slate-700 rounded-xl text-slate-100 text-sm focus:outline-none focus:border-blue-500 resize-none"
               />
             </div>
           </div>
         )}
 
-        {/* Tab 2: Security & Password */}
-        {activeTab === 'security' && (
-          <div className="space-y-6">
-            <h2 className="text-base font-bold text-slate-100 flex items-center gap-2">
-              <ShieldCheck size={18} className="text-blue-400" />
-              <span>Authentication & Access Credentials</span>
-            </h2>
-
-            <div className="space-y-4 max-w-lg">
-              <div>
-                <label className="block text-xs font-medium text-slate-300 mb-1.5">Current Password</label>
-                <input
-                  type="password"
-                  placeholder="••••••••"
-                  value={security.currentPassword}
-                  onChange={(e) => setSecurity({ ...security, currentPassword: e.target.value })}
-                  className="w-full px-4 py-2.5 bg-slate-800 border border-slate-700 rounded-xl text-slate-100 text-sm focus:outline-none focus:border-blue-500"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-medium text-slate-300 mb-1.5">New Password</label>
-                <input
-                  type="password"
-                  placeholder="••••••••"
-                  value={security.newPassword}
-                  onChange={(e) => setSecurity({ ...security, newPassword: e.target.value })}
-                  className="w-full px-4 py-2.5 bg-slate-800 border border-slate-700 rounded-xl text-slate-100 text-sm focus:outline-none focus:border-blue-500"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-medium text-slate-300 mb-1.5">Confirm New Password</label>
-                <input
-                  type="password"
-                  placeholder="••••••••"
-                  value={security.confirmPassword}
-                  onChange={(e) => setSecurity({ ...security, confirmPassword: e.target.value })}
-                  className="w-full px-4 py-2.5 bg-slate-800 border border-slate-700 rounded-xl text-slate-100 text-sm focus:outline-none focus:border-blue-500"
-                />
-              </div>
-            </div>
-
-            <div className="pt-4 border-t border-slate-800 flex items-center justify-between max-w-lg">
-              <div>
-                <p className="text-sm font-semibold text-slate-200">Two-Factor Authentication (2FA)</p>
-                <p className="text-xs text-slate-400">Enforce secondary authorization for security compliance.</p>
-              </div>
-              <input
-                type="checkbox"
-                checked={security.enable2FA}
-                onChange={(e) => setSecurity({ ...security, enable2FA: e.target.checked })}
-                className="w-5 h-5 accent-blue-600 rounded cursor-pointer"
-              />
-            </div>
-          </div>
-        )}
-
-        {/* Tab 3: Regional Preferences & Language */}
+        {/* Tab 2: Preferences */}
         {activeTab === 'preferences' && (
           <div className="space-y-6">
             <h2 className="text-base font-bold text-slate-100 flex items-center gap-2">
               <Globe size={18} className="text-blue-400" />
-              <span>Regional & Financial Defaults</span>
+              <span>Regional & Platform Defaults</span>
             </h2>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
               <div>
-                <label className="block text-xs font-medium text-slate-300 mb-1.5">Default Ledger Currency</label>
+                <label className="block text-xs font-medium text-slate-300 mb-1.5">Default Currency</label>
                 <select
                   value={preferences.currency}
                   onChange={(e) => setPreferences({ ...preferences, currency: e.target.value })}
-                  className="w-full px-4 py-2.5 bg-slate-800 border border-slate-700 rounded-xl text-slate-100 text-sm focus:outline-none focus:border-blue-500"
+                  className="w-full px-4 py-2.5 bg-slate-800 border border-slate-700 rounded-xl text-slate-100 text-sm focus:outline-none focus:border-blue-500 cursor-pointer"
                 >
-                  <option value="DZD">DZD - Algerian Dinar</option>
                   <option value="USD">USD - US Dollar ($)</option>
                   <option value="EUR">EUR - Euro (€)</option>
+                  <option value="DZD">DZD - Algerian Dinar</option>
                 </select>
               </div>
 
@@ -308,10 +279,10 @@ const Settings = () => {
                 <select
                   value={preferences.language}
                   onChange={(e) => setPreferences({ ...preferences, language: e.target.value })}
-                  className="w-full px-4 py-2.5 bg-slate-800 border border-slate-700 rounded-xl text-slate-100 text-sm focus:outline-none focus:border-blue-500"
+                  className="w-full px-4 py-2.5 bg-slate-800 border border-slate-700 rounded-xl text-slate-100 text-sm focus:outline-none focus:border-blue-500 cursor-pointer"
                 >
-                  <option value="ar">العربية (Arabic)</option>
                   <option value="en">English</option>
+                  <option value="ar">العربية (Arabic)</option>
                   <option value="fr">Français (French)</option>
                 </select>
               </div>
@@ -321,7 +292,7 @@ const Settings = () => {
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-sm font-semibold text-slate-200">Email Notifications</p>
-                  <p className="text-xs text-slate-400">Receive alerts for major transaction edits and platform updates.</p>
+                  <p className="text-xs text-slate-400">Receive alerts for major updates and system events.</p>
                 </div>
                 <input
                   type="checkbox"
@@ -334,7 +305,7 @@ const Settings = () => {
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-sm font-semibold text-slate-200">Weekly Summary Reports</p>
-                  <p className="text-xs text-slate-400">Automated financial aggregation sent every Sunday morning.</p>
+                  <p className="text-xs text-slate-400">Automated system activity summary sent weekly.</p>
                 </div>
                 <input
                   type="checkbox"
@@ -347,7 +318,7 @@ const Settings = () => {
           </div>
         )}
 
-        {/* Tab 4: System Defaults & Backup */}
+        {/* Tab 3: System */}
         {activeTab === 'system' && (
           <div className="space-y-6">
             <h2 className="text-base font-bold text-slate-100 flex items-center gap-2">
@@ -359,7 +330,7 @@ const Settings = () => {
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-sm font-semibold text-slate-200">Automated Database Snapshots</p>
-                  <p className="text-xs text-slate-400">Perform daily incremental backups on Render PostgreSQL cluster.</p>
+                  <p className="text-xs text-slate-400">Perform daily incremental database backups automatically.</p>
                 </div>
                 <input
                   type="checkbox"
@@ -371,19 +342,19 @@ const Settings = () => {
 
               <div className="p-4 bg-slate-800/50 border border-slate-700/60 rounded-xl space-y-2">
                 <p className="text-xs font-bold text-slate-300 uppercase tracking-wider">System Info & Health</p>
-                <p className="text-xs text-slate-400">Environment: <span className="text-emerald-400 font-mono">Production (Vercel / Render)</span></p>
+                <p className="text-xs text-slate-400">Environment: <span className="text-emerald-400 font-mono">Production</span></p>
                 <p className="text-xs text-slate-400">API Status: <span className="text-emerald-400 font-mono">Online / REST v1</span></p>
               </div>
             </div>
           </div>
         )}
 
-        {/* Action Button */}
+        {/* Save Button */}
         <div className="pt-6 border-t border-slate-800 flex justify-end">
           <button
             type="submit"
             disabled={saving}
-            className="inline-flex items-center gap-2 bg-blue-600 hover:bg-blue-500 text-white px-6 py-2.5 rounded-xl font-medium text-sm transition-all shadow-lg shadow-blue-600/20 active:scale-95 disabled:opacity-50"
+            className="inline-flex items-center gap-2 bg-blue-600 hover:bg-blue-500 text-white px-6 py-2.5 rounded-xl font-medium text-sm transition-all shadow-lg shadow-blue-600/20 active:scale-95 disabled:opacity-50 cursor-pointer"
           >
             {saving ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />}
             <span>Save Configurations</span>

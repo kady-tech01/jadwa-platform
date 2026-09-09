@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { 
   Wallet, 
   ArrowUpCircle, 
@@ -24,6 +24,7 @@ import {
   Legend 
 } from 'recharts';
 import API from '../services/api';
+import { useCurrency } from '../context/CurrencyContext';
 
 // Fallback cash flow projections for initial load or offline mode
 const defaultCashFlowProjections = [
@@ -36,6 +37,7 @@ const defaultCashFlowProjections = [
 ];
 
 const CashFlow = () => {
+  const { formatAmount } = useCurrency();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [errorMessage, setErrorMessage] = useState(null);
@@ -44,9 +46,9 @@ const CashFlow = () => {
   // Cash Flow dataset states
   const [projections, setProjections] = useState(defaultCashFlowProjections);
   const [summary, setSummary] = useState({
-    totalInflow: '$345,000',
-    totalOutflow: '$220,000',
-    netCashFlow: '$125,000',
+    totalInflow: 345000,
+    totalOutflow: 220000,
+    netCashFlow: 125000,
     paybackYear: 'Year 4',
   });
 
@@ -59,7 +61,7 @@ const CashFlow = () => {
   });
 
   // Fetch Cash Flow projections from Django REST backend
-  const fetchCashFlowData = async () => {
+  const fetchCashFlowData = useCallback(async () => {
     setLoading(true);
     setErrorMessage(null);
     try {
@@ -74,11 +76,11 @@ const CashFlow = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
   useEffect(() => {
     fetchCashFlowData();
-  }, []);
+  }, [fetchCashFlowData]);
 
   // Handle adding a new projection entry
   const handleAddEntry = async (e) => {
@@ -159,14 +161,14 @@ const CashFlow = () => {
         <div className="flex items-center gap-3">
           <button 
             onClick={fetchCashFlowData}
-            className="p-2.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl border border-slate-700 transition-colors"
+            className="p-2.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl border border-slate-700 transition-colors cursor-pointer"
             title="Refresh List"
           >
             <RefreshCw size={18} />
           </button>
           <button 
             onClick={() => setShowAddModal(true)}
-            className="inline-flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-500 text-white px-4 py-2.5 rounded-xl font-medium text-sm transition-all shadow-lg shadow-blue-600/20 active:scale-95"
+            className="inline-flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-500 text-white px-4 py-2.5 rounded-xl font-medium text-sm transition-all shadow-lg shadow-blue-600/20 active:scale-95 cursor-pointer"
           >
             <Plus size={18} />
             <span>Add Period Entry</span>
@@ -176,34 +178,40 @@ const CashFlow = () => {
 
       {/* Cash Flow Summary KPI Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
-        <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5">
+        <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-sm">
           <div className="flex items-center justify-between text-slate-400 mb-2">
             <span className="text-xs font-semibold uppercase tracking-wider">Total Inflows</span>
             <ArrowUpCircle size={20} className="text-emerald-400" />
           </div>
-          <h3 className="text-2xl font-bold text-slate-50">{summary.totalInflow}</h3>
+          <h3 className="text-2xl font-bold text-slate-50">
+            {typeof summary.totalInflow === 'number' ? formatAmount(summary.totalInflow) : summary.totalInflow}
+          </h3>
           <p className="text-[11px] text-emerald-400 mt-1">Projected revenue streams</p>
         </div>
 
-        <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5">
+        <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-sm">
           <div className="flex items-center justify-between text-slate-400 mb-2">
             <span className="text-xs font-semibold uppercase tracking-wider">Total Outflows</span>
             <ArrowDownCircle size={20} className="text-rose-400" />
           </div>
-          <h3 className="text-2xl font-bold text-slate-50">{summary.totalOutflow}</h3>
+          <h3 className="text-2xl font-bold text-slate-50">
+            {typeof summary.totalOutflow === 'number' ? formatAmount(summary.totalOutflow) : summary.totalOutflow}
+          </h3>
           <p className="text-[11px] text-rose-400 mt-1">CapEx + OpEx disbursements</p>
         </div>
 
-        <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5">
+        <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-sm">
           <div className="flex items-center justify-between text-slate-400 mb-2">
             <span className="text-xs font-semibold uppercase tracking-wider">Net Cumulative Flow</span>
             <Wallet size={20} className="text-blue-400" />
           </div>
-          <h3 className="text-2xl font-bold text-slate-50">{summary.netCashFlow}</h3>
+          <h3 className="text-2xl font-bold text-slate-50">
+            {typeof summary.netCashFlow === 'number' ? formatAmount(summary.netCashFlow) : summary.netCashFlow}
+          </h3>
           <p className="text-[11px] text-blue-400 mt-1">End of lifespan liquidity</p>
         </div>
 
-        <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5">
+        <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-sm">
           <div className="flex items-center justify-between text-slate-400 mb-2">
             <span className="text-xs font-semibold uppercase tracking-wider">Break-Even Reached</span>
             <TrendingUp size={20} className="text-purple-400" />
@@ -214,7 +222,7 @@ const CashFlow = () => {
       </div>
 
       {/* Projection Chart Section */}
-      <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6">
+      <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-sm">
         <div className="flex items-center justify-between mb-6">
           <div>
             <h2 className="text-base font-bold text-slate-100">Net & Cumulative Cash Flow Chart</h2>
@@ -227,23 +235,31 @@ const CashFlow = () => {
             <ComposedChart data={projections} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="#1E293B" vertical={false} />
               <XAxis dataKey="year" stroke="#64748B" fontSize={12} tickLine={false} axisLine={false} />
-              <YAxis stroke="#64748B" fontSize={12} tickLine={false} axisLine={false} />
+              <YAxis 
+                stroke="#64748B" 
+                fontSize={12} 
+                tickLine={false} 
+                axisLine={false}
+                tickFormatter={(val) => formatAmount(val)} 
+              />
               <Tooltip 
+                formatter={(value) => [formatAmount(value), '']}
                 contentStyle={{ backgroundColor: '#0F172A', borderColor: '#334155', borderRadius: '12px', color: '#F8FAFC' }}
+                itemStyle={{ fontSize: '13px' }}
               />
               <Legend wrapperStyle={{ paddingTop: '10px', fontSize: '12px' }} />
-              <Bar name="Net Annual Cash Flow ($)" dataKey="net" fill="#3B82F6" radius={[6, 6, 0, 0]} />
-              <Line type="monotone" name="Cumulative Cash Flow ($)" dataKey="cumulative" stroke="#10B981" strokeWidth={3} dot={{ r: 5 }} />
+              <Bar name="Net Annual Cash Flow" dataKey="net" fill="#3B82F6" radius={[6, 6, 0, 0]} />
+              <Line type="monotone" name="Cumulative Cash Flow" dataKey="cumulative" stroke="#10B981" strokeWidth={3} dot={{ r: 5 }} />
             </ComposedChart>
           </ResponsiveContainer>
         </div>
       </div>
 
       {/* Cash Flow Data Table */}
-      <div className="bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden">
+      <div className="bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden shadow-sm">
         <div className="p-6 border-b border-slate-800 flex items-center justify-between">
           <h2 className="text-base font-bold text-slate-100">Detailed Projection Schedule</h2>
-          <button className="inline-flex items-center gap-2 text-xs font-medium text-slate-300 hover:text-white bg-slate-800 hover:bg-slate-700 px-3 py-1.5 rounded-lg transition-colors border border-slate-700">
+          <button className="inline-flex items-center gap-2 text-xs font-medium text-slate-300 hover:text-white bg-slate-800 hover:bg-slate-700 px-3 py-1.5 rounded-lg transition-colors border border-slate-700 cursor-pointer">
             <Download size={14} /> Export CSV
           </button>
         </div>
@@ -253,10 +269,10 @@ const CashFlow = () => {
             <thead className="bg-slate-800/50 text-xs font-semibold uppercase text-slate-400 border-b border-slate-800">
               <tr>
                 <th className="px-6 py-3.5">Timeline Period</th>
-                <th className="px-6 py-3.5">Cash Inflows ($)</th>
-                <th className="px-6 py-3.5">Cash Outflows ($)</th>
-                <th className="px-6 py-3.5">Net Cash Flow ($)</th>
-                <th className="px-6 py-3.5">Cumulative Balance ($)</th>
+                <th className="px-6 py-3.5">Cash Inflows</th>
+                <th className="px-6 py-3.5">Cash Outflows</th>
+                <th className="px-6 py-3.5">Net Cash Flow</th>
+                <th className="px-6 py-3.5">Cumulative Balance</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-800/60">
@@ -267,16 +283,16 @@ const CashFlow = () => {
                     {row.year}
                   </td>
                   <td className="px-6 py-4 text-emerald-400 font-medium">
-                    +${Number(row.inflow).toLocaleString()}
+                    +{formatAmount(row.inflow)}
                   </td>
                   <td className="px-6 py-4 text-rose-400 font-medium">
-                    -${Number(row.outflow).toLocaleString()}
+                    -{formatAmount(row.outflow)}
                   </td>
                   <td className={`px-6 py-4 font-bold ${row.net >= 0 ? 'text-blue-400' : 'text-rose-400'}`}>
-                    ${Number(row.net).toLocaleString()}
+                    {formatAmount(row.net)}
                   </td>
                   <td className={`px-6 py-4 font-bold ${row.cumulative >= 0 ? 'text-emerald-400' : 'text-amber-400'}`}>
-                    ${Number(row.cumulative).toLocaleString()}
+                    {formatAmount(row.cumulative)}
                   </td>
                 </tr>
               ))}
@@ -299,31 +315,31 @@ const CashFlow = () => {
                   required
                   placeholder="e.g. Year 6"
                   value={newEntry.year}
-                  onChange={(e) => setNewEntry({...newEntry, year: e.target.value})}
+                  onChange={(e) => setNewEntry({ ...newEntry, year: e.target.value })}
                   className="w-full px-3.5 py-2 bg-slate-800 border border-slate-700 rounded-xl text-slate-100 text-sm focus:outline-none focus:border-blue-500"
                 />
               </div>
 
               <div>
-                <label className="block text-xs font-medium text-slate-300 mb-1">Inflow ($)</label>
+                <label className="block text-xs font-medium text-slate-300 mb-1">Inflow Amount</label>
                 <input 
                   type="number" 
                   required
                   placeholder="0"
                   value={newEntry.inflow}
-                  onChange={(e) => setNewEntry({...newEntry, inflow: e.target.value})}
+                  onChange={(e) => setNewEntry({ ...newEntry, inflow: e.target.value })}
                   className="w-full px-3.5 py-2 bg-slate-800 border border-slate-700 rounded-xl text-slate-100 text-sm focus:outline-none focus:border-blue-500"
                 />
               </div>
 
               <div>
-                <label className="block text-xs font-medium text-slate-300 mb-1">Outflow ($)</label>
+                <label className="block text-xs font-medium text-slate-300 mb-1">Outflow Amount</label>
                 <input 
                   type="number" 
                   required
                   placeholder="0"
                   value={newEntry.outflow}
-                  onChange={(e) => setNewEntry({...newEntry, outflow: e.target.value})}
+                  onChange={(e) => setNewEntry({ ...newEntry, outflow: e.target.value })}
                   className="w-full px-3.5 py-2 bg-slate-800 border border-slate-700 rounded-xl text-slate-100 text-sm focus:outline-none focus:border-blue-500"
                 />
               </div>
@@ -332,14 +348,14 @@ const CashFlow = () => {
                 <button 
                   type="button" 
                   onClick={() => setShowAddModal(false)}
-                  className="px-4 py-2 text-sm text-slate-400 hover:text-slate-200"
+                  className="px-4 py-2 text-sm text-slate-400 hover:text-slate-200 cursor-pointer"
                 >
                   Cancel
                 </button>
                 <button 
                   type="submit" 
                   disabled={saving}
-                  className="inline-flex items-center gap-2 bg-blue-600 hover:bg-blue-500 text-white px-4 py-2 rounded-xl text-sm font-medium transition-all"
+                  className="inline-flex items-center gap-2 bg-blue-600 hover:bg-blue-500 text-white px-4 py-2 rounded-xl text-sm font-medium transition-all cursor-pointer"
                 >
                   {saving && <Loader2 size={14} className="animate-spin" />}
                   <span>Save Entry</span>
