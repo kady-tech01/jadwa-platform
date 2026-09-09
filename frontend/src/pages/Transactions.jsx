@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
+// AFTER (Clean & Warning-Free)
 import { 
   ArrowUpRight, 
   ArrowDownLeft, 
@@ -13,10 +14,20 @@ import {
   DollarSign,
   X,
   Trash2,
+  Edit2,
   FolderKanban
 } from 'lucide-react';
 import API from '../services/api';
 import { useCurrency } from '../context/CurrencyContext';
+
+const INITIAL_FORM_STATE = {
+  id: null,
+  title: '',
+  category: 'Operations',
+  type: 'expense',
+  amount: '',
+  date: new Date().toISOString().split('T')[0],
+};
 
 const Transactions = ({ projectId }) => {
   const { formatAmount } = useCurrency();
@@ -26,25 +37,21 @@ const Transactions = ({ projectId }) => {
   const [errorMessage, setErrorMessage] = useState(null);
   const [successMessage, setSuccessMessage] = useState(null);
 
-  // User's Project Transactions (Starts completely empty)
+  // User's Project Transactions
   const [transactions, setTransactions] = useState([]);
 
-  // Search and Filter States
+  // Search, Filter, & Sort States
   const [searchTerm, setSearchTerm] = useState('');
   const [typeFilter, setTypeFilter] = useState('all'); // 'all' | 'income' | 'expense'
   const [categoryFilter, setCategoryFilter] = useState('all');
+  const [sortBy, setSortBy] = useState('date-desc'); // 'date-desc' | 'date-asc' | 'amount-desc' | 'amount-asc'
 
-  // Modal State for adding a user's transaction
-  const [showAddModal, setShowAddModal] = useState(false);
-  const [newTransaction, setNewTransaction] = useState({
-    title: '',
-    category: 'Operations',
-    type: 'expense',
-    amount: '',
-    date: new Date().toISOString().split('T')[0],
-  });
+  // Modal State for adding/editing a transaction
+  const [showModal, setShowModal] = useState(false);
+  const [isEditing, setIsEditing] = useState(false);
+  const [formData, setFormData] = useState(INITIAL_FORM_STATE);
 
-  // Fetch only user-created transactions for this specific project
+  // Fetch transactions from backend
   const fetchTransactions = useCallback(async () => {
     if (!projectId) {
       setTransactions([]);
@@ -60,14 +67,14 @@ const Transactions = ({ projectId }) => {
 
       if (Array.isArray(response.data)) {
         setTransactions(response.data);
-      } else if (response.data.results) {
+      } else if (response.data?.results && Array.isArray(response.data.results)) {
         setTransactions(response.data.results);
       } else {
         setTransactions([]);
       }
     } catch (err) {
       console.error('Failed to fetch transactions:', err);
-      setErrorMessage('Could not load transactions for this project.');
+      setErrorMessage('Could not load transactions for this project. Please check backend connection.');
       setTransactions([]);
     } finally {
       setLoading(false);
@@ -78,11 +85,37 @@ const Transactions = ({ projectId }) => {
     fetchTransactions();
   }, [fetchTransactions]);
 
-  // Handle manual entry submission by the user
-  const handleAddTransaction = async (e) => {
+  // Open modal for Create
+  const handleOpenAddModal = () => {
+    setIsEditing(false);
+    setFormData(INITIAL_FORM_STATE);
+    setShowModal(true);
+  };
+
+  // Open modal for Edit
+  const handleOpenEditModal = (transaction) => {
+    setIsEditing(true);
+    setFormData({
+      id: transaction.id,
+      title: transaction.title || '',
+      category: transaction.category || 'Operations',
+      type: transaction.type || 'expense',
+      amount: transaction.amount || '',
+      date: transaction.date || new Date().toISOString().split('T')[0],
+    });
+    setShowModal(true);
+  };
+
+  // Handle Save (Create or Update)
+  const handleSaveTransaction = async (e) => {
     e.preventDefault();
     if (!projectId) {
-      setErrorMessage('Please select a project before adding transactions.');
+      setErrorMessage('Please select a project before saving transactions.');
+      return;
+    }
+
+    if (!formData.title.trim() || !formData.amount || parseFloat(formData.amount) <= 0) {
+      setErrorMessage('Please provide a valid title and positive amount.');
       return;
     }
 
@@ -92,38 +125,39 @@ const Transactions = ({ projectId }) => {
 
     const payload = {
       project: projectId,
-      title: newTransaction.title.trim(),
-      category: newTransaction.category.trim(),
-      type: newTransaction.type,
-      amount: parseFloat(newTransaction.amount) || 0,
-      date: newTransaction.date,
+      title: formData.title.trim(),
+      category: formData.category.trim() || 'General',
+      type: formData.type,
+      amount: parseFloat(formData.amount),
+      date: formData.date,
     };
 
     try {
-      const response = await API.post('transactions/', payload);
-      setTransactions((prev) => [response.data, ...prev]);
-      setSuccessMessage('Transaction added successfully!');
-      setShowAddModal(false);
-      
-      // Reset form
-      setNewTransaction({
-        title: '',
-        category: 'Operations',
-        type: 'expense',
-        amount: '',
-        date: new Date().toISOString().split('T')[0],
-      });
+      if (isEditing) {
+        const response = await API.put(`transactions/${formData.id}/`, payload);
+        setTransactions((prev) =>
+          prev.map((tx) => (tx.id === formData.id ? response.data : tx))
+        );
+        setSuccessMessage('Transaction updated successfully!');
+      } else {
+        const response = await API.post('transactions/', payload);
+        setTransactions((prev) => [response.data, ...prev]);
+        setSuccessMessage('Transaction added successfully!');
+      }
+
+      setShowModal(false);
+      setFormData(INITIAL_FORM_STATE);
     } catch (err) {
-      console.error('Failed to create transaction:', err);
-      setErrorMessage('Failed to save transaction. Please check your backend connection.');
+      console.error('Failed to save transaction:', err);
+      setErrorMessage('Failed to save transaction. Please check your network and API payload.');
     } finally {
       setSaving(false);
     }
   };
 
-  // Handle deleting a user transaction
+  // Handle Delete
   const handleDeleteTransaction = async (id) => {
-    if (!window.confirm('Are you sure you want to delete this transaction record?')) return;
+    if (!window.confirm('Are you sure you want to delete this transaction entry?')) return;
 
     setDeletingId(id);
     setErrorMessage(null);
@@ -135,27 +169,35 @@ const Transactions = ({ projectId }) => {
       setSuccessMessage('Transaction deleted.');
     } catch (err) {
       console.error('Failed to delete transaction:', err);
-      setErrorMessage('Failed to delete transaction.');
+      setErrorMessage('Failed to delete transaction entry.');
     } finally {
       setDeletingId(null);
     }
   };
 
-  // Filtered transactions derived state
+  // Filter & Sort Logic
   const filteredTransactions = useMemo(() => {
-    return transactions.filter((tx) => {
-      const titleMatch = tx.title?.toLowerCase().includes(searchTerm.toLowerCase()) || false;
-      const categoryMatch = tx.category?.toLowerCase().includes(searchTerm.toLowerCase()) || false;
-      const matchesSearch = titleMatch || categoryMatch;
-      
-      const matchesType = typeFilter === 'all' || tx.type === typeFilter;
-      const matchesCategory = categoryFilter === 'all' || tx.category === categoryFilter;
+    return transactions
+      .filter((tx) => {
+        const titleMatch = tx.title?.toLowerCase().includes(searchTerm.toLowerCase()) || false;
+        const categoryMatch = tx.category?.toLowerCase().includes(searchTerm.toLowerCase()) || false;
+        const matchesSearch = titleMatch || categoryMatch;
+        
+        const matchesType = typeFilter === 'all' || tx.type === typeFilter;
+        const matchesCategory = categoryFilter === 'all' || tx.category === categoryFilter;
 
-      return matchesSearch && matchesType && matchesCategory;
-    });
-  }, [transactions, searchTerm, typeFilter, categoryFilter]);
+        return matchesSearch && matchesType && matchesCategory;
+      })
+      .sort((a, b) => {
+        if (sortBy === 'date-desc') return new Date(b.date) - new Date(a.date);
+        if (sortBy === 'date-asc') return new Date(a.date) - new Date(b.date);
+        if (sortBy === 'amount-desc') return Number(b.amount) - Number(a.amount);
+        if (sortBy === 'amount-asc') return Number(a.amount) - Number(b.amount);
+        return 0;
+      });
+  }, [transactions, searchTerm, typeFilter, categoryFilter, sortBy]);
 
-  // Live Aggregate KPI Metrics computed from user input
+  // Aggregate Metrics
   const metrics = useMemo(() => {
     const totalIncome = transactions
       .filter((t) => t.type === 'income')
@@ -173,13 +215,13 @@ const Transactions = ({ projectId }) => {
     };
   }, [transactions]);
 
-  // Dynamically pull categories created by the user for the dropdown filter
+  // Dynamic Categories Dropdown list
   const categoriesList = useMemo(() => {
     const cats = new Set(transactions.map((t) => t.category).filter(Boolean));
     return Array.from(cats);
   }, [transactions]);
 
-  // Export User Transactions to CSV
+  // CSV Export
   const handleExportCSV = () => {
     if (filteredTransactions.length === 0) return;
 
@@ -204,7 +246,6 @@ const Transactions = ({ projectId }) => {
     document.body.removeChild(link);
   };
 
-  // Screen state when user hasn't selected a project
   if (!projectId) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[50vh] p-8 text-center bg-slate-900 border border-slate-800 rounded-2xl">
@@ -228,7 +269,7 @@ const Transactions = ({ projectId }) => {
 
   return (
     <div className="space-y-8">
-      {/* Alert Notifications */}
+      {/* Alert Banners */}
       {errorMessage && (
         <div className="flex items-center justify-between p-4 bg-amber-500/10 border border-amber-500/20 text-amber-400 rounded-xl text-sm">
           <div className="flex items-center gap-3">
@@ -253,12 +294,12 @@ const Transactions = ({ projectId }) => {
         </div>
       )}
 
-      {/* Header Section */}
+      {/* Header Bar */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-slate-50 tracking-tight">Project Financial Ledger</h1>
           <p className="text-sm text-slate-400 mt-1">
-            Manually log, update, and manage financial income and expenses for this project.
+            Log, update, and monitor financial inflows and outflows for this project.
           </p>
         </div>
         <div className="flex items-center gap-3">
@@ -270,7 +311,7 @@ const Transactions = ({ projectId }) => {
             <RefreshCw size={18} />
           </button>
           <button 
-            onClick={() => setShowAddModal(true)}
+            onClick={handleOpenAddModal}
             className="inline-flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-500 text-white px-4 py-2.5 rounded-xl font-medium text-sm transition-all shadow-lg shadow-blue-600/20 active:scale-95 cursor-pointer"
           >
             <Plus size={18} />
@@ -279,7 +320,7 @@ const Transactions = ({ projectId }) => {
         </div>
       </div>
 
-      {/* Overview Metrics Cards */}
+      {/* KPI Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
         <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-sm">
           <div className="flex items-center justify-between text-slate-400 mb-2">
@@ -320,20 +361,21 @@ const Transactions = ({ projectId }) => {
         </div>
       </div>
 
-      {/* Controls Bar: Search & Filtering */}
-      <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 flex flex-col md:flex-row items-center justify-between gap-4 shadow-sm">
-        <div className="relative w-full md:w-80">
+      {/* Control Bar: Search, Filters & Sorting */}
+      <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 flex flex-col lg:flex-row items-center justify-between gap-4 shadow-sm">
+        <div className="relative w-full lg:w-80">
           <Search size={18} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-500" />
           <input 
             type="text" 
-            placeholder="Search transactions..."
+            placeholder="Search by title or category..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             className="w-full pl-10 pr-4 py-2 bg-slate-800 border border-slate-700 rounded-xl text-slate-100 text-sm focus:outline-none focus:border-blue-500 placeholder:text-slate-500"
           />
         </div>
 
-        <div className="flex flex-wrap items-center gap-3 w-full md:w-auto">
+        <div className="flex flex-wrap items-center gap-3 w-full lg:w-auto">
+          {/* Type Switcher */}
           <div className="flex bg-slate-800 p-1 rounded-xl border border-slate-700">
             <button
               onClick={() => setTypeFilter('all')}
@@ -361,7 +403,8 @@ const Transactions = ({ projectId }) => {
             </button>
           </div>
 
-          <div className="relative min-w-[140px]">
+          {/* Category Filter Dropdown */}
+          <div className="relative min-w-[130px]">
             <select
               value={categoryFilter}
               onChange={(e) => setCategoryFilter(e.target.value)}
@@ -373,10 +416,24 @@ const Transactions = ({ projectId }) => {
               ))}
             </select>
           </div>
+
+          {/* Sort Selector */}
+          <div className="relative min-w-[140px]">
+            <select
+              value={sortBy}
+              onChange={(e) => setSortBy(e.target.value)}
+              className="w-full bg-slate-800 border border-slate-700 text-slate-300 px-3 py-2 rounded-xl text-xs font-medium focus:outline-none focus:border-blue-500 cursor-pointer"
+            >
+              <option value="date-desc">Newest Date</option>
+              <option value="date-asc">Oldest Date</option>
+              <option value="amount-desc">Highest Amount</option>
+              <option value="amount-asc">Lowest Amount</option>
+            </select>
+          </div>
         </div>
       </div>
 
-      {/* Transactions Table */}
+      {/* Main Table */}
       <div className="bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden shadow-sm">
         <div className="p-6 border-b border-slate-800 flex items-center justify-between">
           <h2 className="text-base font-bold text-slate-100">Transaction Log</h2>
@@ -398,7 +455,7 @@ const Transactions = ({ projectId }) => {
                 <th className="px-6 py-3.5">Date</th>
                 <th className="px-6 py-3.5">Type</th>
                 <th className="px-6 py-3.5 text-right">Amount</th>
-                <th className="px-6 py-3.5 text-center">Action</th>
+                <th className="px-6 py-3.5 text-center">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-800/60">
@@ -435,22 +492,31 @@ const Transactions = ({ projectId }) => {
                       {tx.type === 'income' ? '+' : '-'}{formatAmount(tx.amount)}
                     </td>
                     <td className="px-6 py-4 text-center">
-                      <button
-                        onClick={() => handleDeleteTransaction(tx.id)}
-                        disabled={deletingId === tx.id}
-                        className="p-1.5 text-slate-400 hover:text-rose-400 hover:bg-rose-500/10 rounded-lg transition-colors cursor-pointer disabled:opacity-50"
-                        title="Delete entry"
-                      >
-                        {deletingId === tx.id ? <Loader2 size={16} className="animate-spin text-rose-400" /> : <Trash2 size={16} />}
-                      </button>
+                      <div className="flex items-center justify-center gap-2">
+                        <button
+                          onClick={() => handleOpenEditModal(tx)}
+                          className="p-1.5 text-slate-400 hover:text-blue-400 hover:bg-blue-500/10 rounded-lg transition-colors cursor-pointer"
+                          title="Edit entry"
+                        >
+                          <Edit2 size={16} />
+                        </button>
+                        <button
+                          onClick={() => handleDeleteTransaction(tx.id)}
+                          disabled={deletingId === tx.id}
+                          className="p-1.5 text-slate-400 hover:text-rose-400 hover:bg-rose-500/10 rounded-lg transition-colors cursor-pointer disabled:opacity-50"
+                          title="Delete entry"
+                        >
+                          {deletingId === tx.id ? <Loader2 size={16} className="animate-spin text-rose-400" /> : <Trash2 size={16} />}
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))
               ) : (
                 <tr>
                   <td colSpan={6} className="px-6 py-12 text-center text-slate-500 text-sm">
-                    No transactions recorded for this project yet.<br />
-                    Click <strong className="text-slate-300">"Add Transaction"</strong> above to input your first expense or income entry.
+                    No transactions recorded matching your search.<br />
+                    Click <strong className="text-slate-300">"Add Transaction"</strong> above to input a new record.
                   </td>
                 </tr>
               )}
@@ -459,29 +525,31 @@ const Transactions = ({ projectId }) => {
         </div>
       </div>
 
-      {/* Add New Transaction Modal */}
-      {showAddModal && (
+      {/* Add / Edit Modal */}
+      {showModal && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <div className="bg-slate-900 border border-slate-800 rounded-2xl max-w-md w-full p-6 space-y-5 shadow-2xl relative">
             <div className="flex items-center justify-between border-b border-slate-800 pb-3">
-              <h3 className="text-lg font-bold text-slate-50">Add Project Transaction</h3>
+              <h3 className="text-lg font-bold text-slate-50">
+                {isEditing ? 'Edit Transaction' : 'Add Project Transaction'}
+              </h3>
               <button 
-                onClick={() => setShowAddModal(false)}
+                onClick={() => setShowModal(false)}
                 className="text-slate-400 hover:text-slate-200 transition-colors"
               >
                 <X size={18} />
               </button>
             </div>
 
-            <form onSubmit={handleAddTransaction} className="space-y-4">
+            <form onSubmit={handleSaveTransaction} className="space-y-4">
               <div>
                 <label className="block text-xs font-medium text-slate-300 mb-1">Title / Description</label>
                 <input 
                   type="text" 
                   required
-                  placeholder="e.g. Domain Name Renewal"
-                  value={newTransaction.title}
-                  onChange={(e) => setNewTransaction({ ...newTransaction, title: e.target.value })}
+                  placeholder="e.g. Server Hosting Subscription"
+                  value={formData.title}
+                  onChange={(e) => setFormData({ ...formData, title: e.target.value })}
                   className="w-full px-3.5 py-2 bg-slate-800 border border-slate-700 rounded-xl text-slate-100 text-sm focus:outline-none focus:border-blue-500"
                 />
               </div>
@@ -490,8 +558,8 @@ const Transactions = ({ projectId }) => {
                 <div>
                   <label className="block text-xs font-medium text-slate-300 mb-1">Type</label>
                   <select
-                    value={newTransaction.type}
-                    onChange={(e) => setNewTransaction({ ...newTransaction, type: e.target.value })}
+                    value={formData.type}
+                    onChange={(e) => setFormData({ ...formData, type: e.target.value })}
                     className="w-full px-3.5 py-2 bg-slate-800 border border-slate-700 rounded-xl text-slate-100 text-sm focus:outline-none focus:border-blue-500 cursor-pointer"
                   >
                     <option value="expense">Expense</option>
@@ -504,9 +572,9 @@ const Transactions = ({ projectId }) => {
                   <input 
                     type="text" 
                     required
-                    placeholder="e.g. Operations"
-                    value={newTransaction.category}
-                    onChange={(e) => setNewTransaction({ ...newTransaction, category: e.target.value })}
+                    placeholder="e.g. Marketing, Operations"
+                    value={formData.category}
+                    onChange={(e) => setFormData({ ...formData, category: e.target.value })}
                     className="w-full px-3.5 py-2 bg-slate-800 border border-slate-700 rounded-xl text-slate-100 text-sm focus:outline-none focus:border-blue-500"
                   />
                 </div>
@@ -518,10 +586,11 @@ const Transactions = ({ projectId }) => {
                   <input 
                     type="number" 
                     step="0.01"
+                    min="0.01"
                     required
                     placeholder="0.00"
-                    value={newTransaction.amount}
-                    onChange={(e) => setNewTransaction({ ...newTransaction, amount: e.target.value })}
+                    value={formData.amount}
+                    onChange={(e) => setFormData({ ...formData, amount: e.target.value })}
                     className="w-full px-3.5 py-2 bg-slate-800 border border-slate-700 rounded-xl text-slate-100 text-sm focus:outline-none focus:border-blue-500"
                   />
                 </div>
@@ -531,8 +600,8 @@ const Transactions = ({ projectId }) => {
                   <input 
                     type="date" 
                     required
-                    value={newTransaction.date}
-                    onChange={(e) => setNewTransaction({ ...newTransaction, date: e.target.value })}
+                    value={formData.date}
+                    onChange={(e) => setFormData({ ...formData, date: e.target.value })}
                     className="w-full px-3.5 py-2 bg-slate-800 border border-slate-700 rounded-xl text-slate-100 text-sm focus:outline-none focus:border-blue-500"
                   />
                 </div>
@@ -541,7 +610,7 @@ const Transactions = ({ projectId }) => {
               <div className="flex justify-end gap-3 pt-3">
                 <button 
                   type="button" 
-                  onClick={() => setShowAddModal(false)}
+                  onClick={() => setShowModal(false)}
                   className="px-4 py-2 text-sm text-slate-400 hover:text-slate-200 cursor-pointer"
                 >
                   Cancel
@@ -552,7 +621,7 @@ const Transactions = ({ projectId }) => {
                   className="inline-flex items-center gap-2 bg-blue-600 hover:bg-blue-500 text-white px-4 py-2 rounded-xl text-sm font-medium transition-all cursor-pointer disabled:opacity-50"
                 >
                   {saving && <Loader2 size={14} className="animate-spin" />}
-                  <span>Save Entry</span>
+                  <span>{isEditing ? 'Update Entry' : 'Save Entry'}</span>
                 </button>
               </div>
             </form>

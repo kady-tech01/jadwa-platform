@@ -2,9 +2,8 @@ import React, { useState } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider } from './context/AuthContext';
 import { ThemeProvider } from './context/ThemeContext';
-import { CurrencyProvider } from './context/CurrencyContext'; // <--- Import CurrencyProvider
+import { CurrencyProvider } from './context/CurrencyContext';
 import PrivateRoute from './components/PrivateRoute';
-import Navbar from './components/Navbar';
 import Sidebar from './components/Sidebar';
 
 // Pages
@@ -26,9 +25,7 @@ const AppLayout = ({ children }) => {
 
   return (
     <div className="min-h-screen bg-slate-100 text-slate-900 dark:bg-slate-950 dark:text-slate-100 transition-colors duration-200">
-      <Navbar />
-      
-      <div className="flex pt-16 min-h-[calc(100vh-4rem)]">
+      <div className="flex min-h-screen">
         <Sidebar 
           isCollapsed={isSidebarCollapsed} 
           setIsCollapsed={setIsSidebarCollapsed} 
@@ -51,7 +48,7 @@ const AppLayout = ({ children }) => {
 function App() {
   return (
     <ThemeProvider>
-      <CurrencyProvider> {/* <--- Wrap entire route tree with CurrencyProvider */}
+      <CurrencyProvider>
         <Router>
           <AuthProvider>
             <Routes>
