@@ -35,23 +35,50 @@ const ProjectForm = () => {
       try {
         setFetching(true);
         const response = await API.get(`projects/${id}/`);
-        setFormData(response.data);
-        if (response.data.currency) {
-          changeCurrency(response.data.currency);
+        const data = response.data;
+
+        setFormData({
+          title: data.title || '',
+          category: data.category || 'Technology',
+          status: data.status || 'Draft',
+          currency: data.currency || selectedCurrency.code,
+          initialCapital: data.initial_investment ?? data.initialCapital ?? '',
+          annualRevenue: data.annual_revenue ?? data.annualRevenue ?? '',
+          annualExpenses: data.annual_opex ?? data.annualExpenses ?? '',
+          npv: data.npv ?? '',
+          irr: data.irr ?? '',
+          paybackPeriod: data.payback_period ?? data.paybackPeriod ?? '',
+          description: data.description || '',
+        });
+
+        if (data.currency) {
+          changeCurrency(data.currency);
         }
       } catch (error) {
-        console.warn('Backend endpoint unavailable, attempting local cache lookup:', error);
+        console.warn('Backend endpoint unavailable, searching local storage:', error);
 
         const localProjects = JSON.parse(localStorage.getItem('jadwa_projects') || '[]');
         const existingProject = localProjects.find((p) => String(p.id) === String(id));
 
         if (existingProject) {
-          setFormData(existingProject);
+          setFormData({
+            title: existingProject.title || '',
+            category: existingProject.category || 'Technology',
+            status: existingProject.status || 'Draft',
+            currency: existingProject.currency || selectedCurrency.code,
+            initialCapital: existingProject.initialCapital ?? existingProject.initial_investment ?? '',
+            annualRevenue: existingProject.annualRevenue ?? existingProject.annual_revenue ?? '',
+            annualExpenses: existingProject.annualExpenses ?? existingProject.annual_opex ?? '',
+            npv: existingProject.npv ?? '',
+            irr: existingProject.irr ?? '',
+            paybackPeriod: existingProject.paybackPeriod ?? existingProject.payback_period ?? '',
+            description: existingProject.description || '',
+          });
           if (existingProject.currency) {
             changeCurrency(existingProject.currency);
           }
         } else {
-          alert('Project requested could not be located.');
+          alert('Project requested could not be found.');
           navigate('/projects');
         }
       } finally {
@@ -60,7 +87,7 @@ const ProjectForm = () => {
     };
 
     fetchProjectData();
-  }, [id, isEditMode, navigate, changeCurrency]);
+  }, [id, isEditMode, navigate, changeCurrency, selectedCurrency.code]);
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -72,7 +99,6 @@ const ProjectForm = () => {
     setFormData((prev) => {
       const updated = { ...prev, [name]: value };
 
-      // Automatic Financial KPI Estimates
       const capital = Number(name === 'initialCapital' ? value : prev.initialCapital) || 0;
       const revenue = Number(name === 'annualRevenue' ? value : prev.annualRevenue) || 0;
       const expenses = Number(name === 'annualExpenses' ? value : prev.annualExpenses) || 0;
@@ -101,40 +127,58 @@ const ProjectForm = () => {
     e.preventDefault();
     setLoading(true);
 
-    const projectId = isEditMode ? id : Date.now();
-    const payload = { 
-      ...formData, 
-      id: projectId,
+    const apiPayload = {
+      title: formData.title,
+      category: formData.category,
+      status: formData.status,
       currency: selectedCurrency.code,
-      createdAt: formData.createdAt || new Date().toISOString().split('T')[0]
+      initial_investment: formData.initialCapital ? parseFloat(formData.initialCapital) : 0,
+      annual_revenue: formData.annualRevenue ? parseFloat(formData.annualRevenue) : 0,
+      annual_opex: formData.annualExpenses ? parseFloat(formData.annualExpenses) : 0,
+      npv: formData.npv ? parseFloat(formData.npv) : 0,
+      irr: formData.irr ? parseFloat(formData.irr) : 0,
+      payback_period: formData.paybackPeriod ? parseFloat(formData.paybackPeriod) : 0,
+      description: formData.description,
     };
 
-    // 1. Safe Synchronous LocalStorage Save First
-    const localProjects = JSON.parse(localStorage.getItem('jadwa_projects') || '[]');
-    let updatedProjects;
+    let savedProject = null;
 
-    if (isEditMode) {
-      updatedProjects = localProjects.map((p) =>
-        String(p.id) === String(id) ? { ...p, ...payload } : p
-      );
-    } else {
-      updatedProjects = [payload, ...localProjects];
-    }
-    localStorage.setItem('jadwa_projects', JSON.stringify(updatedProjects));
-
-    // 2. Attempt Backend Sync
     try {
       if (isEditMode) {
-        await API.put(`projects/${id}/`, payload);
+        const response = await API.put(`projects/${id}/`, apiPayload);
+        savedProject = response.data;
       } else {
-        await API.post('projects/', payload);
+        const response = await API.post('projects/', apiPayload);
+        savedProject = response.data;
       }
     } catch (error) {
-      console.warn('Backend API persistence failed. Saved locally instead:', error);
-    } finally {
-      setLoading(false);
-      navigate('/projects');
+      console.warn('Backend API request failed. Falling back to LocalStorage save:', error?.response?.data || error);
     }
+
+    const localProjects = JSON.parse(localStorage.getItem('jadwa_projects') || '[]');
+    const fallbackId = isEditMode ? id : Date.now();
+
+    const storageObject = {
+      ...formData,
+      ...apiPayload,
+      id: savedProject?.id || fallbackId,
+      currency: selectedCurrency.code,
+      createdAt: formData.createdAt || new Date().toISOString().split('T')[0],
+    };
+
+    let updatedProjects;
+    if (isEditMode) {
+      updatedProjects = localProjects.map((p) =>
+        String(p.id) === String(id) ? storageObject : p
+      );
+    } else {
+      updatedProjects = [storageObject, ...localProjects];
+    }
+
+    localStorage.setItem('jadwa_projects', JSON.stringify(updatedProjects));
+
+    setLoading(false);
+    navigate('/projects');
   };
 
   if (fetching) {
