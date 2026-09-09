@@ -1,8 +1,19 @@
 from django.contrib import admin
 from .models import Project
 
+
 @admin.register(Project)
 class ProjectAdmin(admin.ModelAdmin):
-    list_display = ('title', 'owner', 'category', 'status', 'initial_investment', 'created_at')
-    list_filter = ('status', 'category')
-    search_fields = ('title', 'owner__username', 'category')
+    list_display = (
+        'id',
+        'title',
+        'user',
+        'category',
+        'initial_investment',
+        'npv',
+        'irr',
+        'created_at',
+    )
+    list_filter = ('category', 'created_at', 'user')
+    search_fields = ('title', 'user__username', 'category')
+    ordering = ('-created_at',)

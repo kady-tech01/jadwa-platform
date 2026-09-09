@@ -1,59 +1,31 @@
-from django.http import HttpResponse
-from rest_framework.views import APIView
+from rest_framework import viewsets, permissions
 from rest_framework.response import Response
-from rest_framework import status, permissions
+from rest_framework.decorators import action
+from django.db.models import Sum, Avg, Count
 from apps.projects.models import Project
-from .services.cashflow import FinancialEngine
-from .services.sensitivity import SensitivityEngine
-from .services.export import ExcelExportEngine
+from .models import ProjectAnalytics
+from .serializers import ProjectAnalyticsSerializer
 
+class AnalyticsViewSet(viewsets.ReadOnlyModelViewSet):
+    queryset = ProjectAnalytics.objects.all()
+    serializer_class = ProjectAnalyticsSerializer
+    permission_classes = [permissions.AllowAny]
 
-class ProjectAnalyticsView(APIView):
-    """
-    API endpoint returning comprehensive Pandas/NumPy financial analytics for a project.
-    """
-    permission_classes = [permissions.IsAuthenticatedOrReadOnly]
+    @action(detail=False, methods=['get'])
+    def summary(self, request):
+        """Aggregated KPI metrics for the portfolio overview dashboard."""
+        projects = Project.objects.all()
+        if request.user.is_authenticated:
+            projects = projects.filter(user=request.user)
 
-    def get(self, request, project_id):
-        try:
-            project = Project.objects.get(id=project_id)
-        except Project.DoesNotExist:
-            return Response({"error": "Project not found"}, status=status.HTTP_404_NOT_FOUND)
-
-        financial_engine = FinancialEngine(project)
-        sensitivity_engine = SensitivityEngine(project)
-
-        metrics = financial_engine.calculate_metrics()
-        sensitivity = sensitivity_engine.run_sensitivity_analysis()
+        total_projects = projects.count()
+        total_capex = projects.aggregate(Sum('initial_investment'))['initial_investment__sum'] or 0
+        total_npv = projects.aggregate(Sum('npv'))['npv__sum'] or 0
+        avg_irr = projects.aggregate(Avg('irr'))['irr__avg'] or 0
 
         return Response({
-            'project_id': project.id,
-            'project_title': project.title,
-            'currency': getattr(project, 'currency', 'DZD'),
-            'financial_metrics': metrics,
-            'sensitivity_analysis': sensitivity
-        }, status=status.HTTP_200_OK)
-
-
-class ProjectAnalyticsExportView(APIView):
-    """
-    API endpoint to export financial feasibility reports as an Excel (.xlsx) file.
-    """
-    permission_classes = [permissions.IsAuthenticatedOrReadOnly]
-
-    def get(self, request, project_id):
-        try:
-            project = Project.objects.get(id=project_id)
-        except Project.DoesNotExist:
-            return Response({"error": "Project not found"}, status=status.HTTP_404_NOT_FOUND)
-
-        exporter = ExcelExportEngine(project)
-        excel_buffer = exporter.generate_excel_report()
-
-        filename = f"feasibility_study_{project.id}.xlsx"
-        response = HttpResponse(
-            excel_buffer,
-            content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
-        )
-        response['Content-Disposition'] = f'attachment; filename="{filename}"'
-        return response
+            'total_projects': total_projects,
+            'total_investment': float(total_capex),
+            'total_npv': float(total_npv),
+            'average_irr': round(float(avg_irr), 2) if avg_irr else 0.0,
+        })

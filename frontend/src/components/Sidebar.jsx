@@ -65,16 +65,19 @@ const Sidebar = ({ isCollapsed, setIsCollapsed }) => {
         {isCollapsed ? <ChevronRight size={16} /> : <ChevronLeft size={16} />}
       </button>
 
-      {/* Brand Logo Header */}
-      <div className="flex items-center gap-3 px-5 py-5 border-b border-slate-800/80 shrink-0">
-        <div className={`w-10 h-10 rounded-xl flex items-center justify-center overflow-hidden shrink-0 ${
-          imageError ? 'bg-blue-600 text-white font-bold text-lg' : 'bg-blue-600/10 border border-blue-500/20'
-        }`}>
+      {/* Brand Logo Header (Centered Stack Layout) */}
+      <div className={`flex flex-col items-center justify-center py-6 border-b border-slate-800/80 shrink-0 transition-all ${
+        isCollapsed ? 'px-2' : 'px-4'
+      }`}>
+        {/* Circle Frame for Logo */}
+        <div className={`rounded-full flex items-center justify-center overflow-hidden shrink-0 border border-blue-500/30 shadow-md shadow-blue-500/10 transition-all duration-300 ${
+          isCollapsed ? 'w-10 h-10' : 'w-16 h-16 mb-3'
+        } ${imageError ? 'bg-blue-600 text-white font-bold text-xl' : 'bg-slate-800'}`}>
           {!imageError ? (
             <img 
               src="/logo.png" 
-              alt="Logo" 
-              className="w-full h-full object-contain p-1"
+              alt="JADWA Logo" 
+              className="w-full h-full object-cover p-1.5 rounded-full"
               onError={() => setImageError(true)}
             />
           ) : (
@@ -82,9 +85,10 @@ const Sidebar = ({ isCollapsed, setIsCollapsed }) => {
           )}
         </div>
 
+        {/* Platform Name Underneath Logo */}
         {!isCollapsed && (
-          <div className="overflow-hidden whitespace-nowrap">
-            <h1 className="font-bold text-lg text-slate-50 tracking-wide">JADWA</h1>
+          <div className="text-center overflow-hidden whitespace-nowrap">
+            <h1 className="font-bold text-lg text-slate-50 tracking-wider">JADWA</h1>
             <p className="text-xs text-slate-400 font-medium">Financial Platform</p>
           </div>
         )}

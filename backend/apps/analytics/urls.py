@@ -1,7 +1,10 @@
-from django.urls import path
-from .views import ProjectAnalyticsView, ProjectAnalyticsExportView
+from django.urls import path, include
+from rest_framework.routers import DefaultRouter
+from .views import AnalyticsViewSet
+
+router = DefaultRouter()
+router.register(r'', AnalyticsViewSet, basename='analytics')
 
 urlpatterns = [
-    path('projects/<int:project_id>/analytics/', ProjectAnalyticsView.as_view(), name='project-analytics'),
-    path('projects/<int:project_id>/analytics/export/', ProjectAnalyticsExportView.as_view(), name='project-analytics-export'),
+    path('', include(router.urls)),
 ]

@@ -23,7 +23,7 @@ const ProjectDetails = () => {
       } catch (err) {
         // Fallback to LocalStorage
         const localData = JSON.parse(localStorage.getItem('jadwa_projects') || '[]');
-        const found = localData.find((p) => String(p.id) === String(id));
+        const found = localData.find((p) => String(p.id) === String(id) || String(p.pk) === String(id));
         if (found) {
           setProject(found);
         } else {
@@ -55,7 +55,7 @@ const ProjectDetails = () => {
     } catch (err) {
       // Fallback: Remove from local storage
       const localProjects = JSON.parse(localStorage.getItem('jadwa_projects') || '[]');
-      const updated = localProjects.filter((p) => String(p.id) !== String(id));
+      const updated = localProjects.filter((p) => String(p.id) !== String(id) && String(p.pk) !== String(id));
       localStorage.setItem('jadwa_projects', JSON.stringify(updated));
     }
     navigate('/projects');
@@ -70,9 +70,27 @@ const ProjectDetails = () => {
   }
 
   // --- AUTOMATED FINANCIAL CALCULATIONS ---
-  const capital = Number(project.initialCapital) || 0;
-  const baseRevenue = Number(project.annualRevenue) || (capital * 0.45); // Fallback: 45% of capital
-  const baseExpenses = Number(project.annualExpenses) || (baseRevenue * 0.35); // Fallback: 35% of revenue
+  // Support both camelCase and snake_case field names from backend / form inputs
+  const capital = Number(
+    project.initialCapital ?? 
+    project.initial_investment ?? 
+    project.capex ?? 
+    project.budget ?? 0
+  );
+
+  const baseRevenue = Number(
+    project.annualRevenue ?? 
+    project.annual_revenue ?? 
+    project.revenue ?? 
+    project.expected_revenue ?? (capital * 0.45)
+  );
+
+  const baseExpenses = Number(
+    project.annualExpenses ?? 
+    project.annual_opex ?? 
+    project.opex ?? 
+    project.operating_costs ?? (baseRevenue * 0.35)
+  );
 
   // Calculate adjusted annual net cash flow based on simulator slider
   const simulatedRevenue = baseRevenue * (1 + revenueChange / 100);
@@ -167,9 +185,9 @@ const ProjectDetails = () => {
         <div className="flex flex-wrap items-center justify-between gap-4">
           <div>
             <span className="text-xs font-semibold uppercase tracking-wider text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-950/50 px-3 py-1 rounded-full">
-              {project.category}
+              {project.category || project.industry || 'Feasibility Study'}
             </span>
-            <h1 className="text-2xl font-bold mt-2">{project.title}</h1>
+            <h1 className="text-2xl font-bold mt-2">{project.title || project.name || 'Untitled Project'}</h1>
           </div>
 
           <div className={`flex items-center gap-2 px-4 py-2 rounded-xl border font-medium ${decision.color}`}>

@@ -28,6 +28,121 @@ import { useNavigate } from 'react-router-dom';
 import API from '../services/api';
 import { useCurrency } from '../context/CurrencyContext';
 
+// ---------------------------------------------------------------------------
+// Pure helper functions declared OUTSIDE the component to prevent ESLint 
+// react-hooks/exhaustive-deps re-creation warnings.
+// ---------------------------------------------------------------------------
+
+const parseNum = (val) => {
+  if (val === null || val === undefined) return 0;
+  const parsed = Number(val);
+  return isNaN(parsed) ? 0 : parsed;
+};
+
+const computeAnalyticsFromProjects = (projectList) => {
+  if (!projectList || projectList.length === 0) {
+    return {
+      metrics: {
+        portfolioNPV: 0,
+        avgIRR: 0,
+        overallRiskIndex: 'None (0%)',
+        highYieldProjects: 0,
+        totalProjectsCount: 0
+      },
+      sensitivityData: [],
+      riskProfile: []
+    };
+  }
+
+  let totalNPV = 0;
+  let irrSum = 0;
+  let highYieldCount = 0;
+  let totalCapex = 0;
+  let totalOpex = 0;
+  let totalRevenue = 0;
+
+  projectList.forEach((proj) => {
+    const npv = parseNum(proj.npv || proj.financial_metrics?.npv || proj.net_present_value);
+    const irr = parseNum(proj.irr || proj.financial_metrics?.irr || proj.internal_rate_of_return);
+    const capex = parseNum(proj.initial_investment || proj.capex || proj.budget || proj.capital);
+    const opex = parseNum(proj.annual_opex || proj.opex || proj.operating_costs);
+    const rev = parseNum(proj.annual_revenue || proj.revenue || proj.expected_revenue);
+
+    totalNPV += npv;
+    irrSum += irr;
+    totalCapex += capex;
+    totalOpex += opex;
+    totalRevenue += rev;
+
+    if (irr >= 18 || (npv > 0 && rev > (capex * 0.25))) {
+      highYieldCount += 1;
+    }
+  });
+
+  const avgIRRValue = projectList.length > 0 ? (irrSum / projectList.length).toFixed(1) : 0;
+  
+  const opexRatio = totalRevenue > 0 ? (totalOpex / totalRevenue) : 0.5;
+  let riskLevel = 'Low (15%)';
+  if (opexRatio > 0.7) riskLevel = 'High (68%)';
+  else if (opexRatio > 0.4) riskLevel = 'Moderate (34%)';
+
+  const baseCalculatedNPV = totalNPV !== 0 ? totalNPV : (totalRevenue - totalOpex);
+  const effectiveBase = baseCalculatedNPV !== 0 ? baseCalculatedNPV : 10000;
+
+  const variations = [
+    { label: '-20%', revFactor: 0.8, costFactor: 1.2 },
+    { label: '-10%', revFactor: 0.9, costFactor: 1.1 },
+    { label: 'Base (0%)', revFactor: 1.0, costFactor: 1.0 },
+    { label: '+10%', revFactor: 1.1, costFactor: 0.9 },
+    { label: '+20%', revFactor: 1.2, costFactor: 0.8 },
+  ];
+
+  const generatedSensitivity = variations.map((v) => ({
+    variation: v.label,
+    revenueImpact: Math.round(effectiveBase * v.revFactor),
+    costImpact: Math.round(effectiveBase * v.costFactor)
+  }));
+
+  const generatedRiskProfile = [
+    { 
+      category: 'Market Demand', 
+      riskScore: Math.min(85, Math.round(opexRatio * 80 + 20)), 
+      mitigationScore: 75 
+    },
+    { 
+      category: 'CapEx Inflation', 
+      riskScore: totalCapex > 500000 ? 65 : 35, 
+      mitigationScore: 80 
+    },
+    { 
+      category: 'OpEx Fluctuation', 
+      riskScore: Math.min(90, Math.round(opexRatio * 90)), 
+      mitigationScore: 65 
+    },
+    { 
+      category: 'Regulatory Shift', 
+      riskScore: 30, 
+      mitigationScore: 85 
+    },
+  ];
+
+  return {
+    metrics: {
+      portfolioNPV: totalNPV,
+      avgIRR: parseNum(avgIRRValue),
+      overallRiskIndex: riskLevel,
+      highYieldProjects: highYieldCount,
+      totalProjectsCount: projectList.length
+    },
+    sensitivityData: generatedSensitivity,
+    riskProfile: generatedRiskProfile
+  };
+};
+
+// ---------------------------------------------------------------------------
+// Analytics Component
+// ---------------------------------------------------------------------------
+
 const Analytics = () => {
   const navigate = useNavigate();
   const { formatAmount } = useCurrency();
@@ -38,7 +153,7 @@ const Analytics = () => {
   const [metrics, setMetrics] = useState({
     portfolioNPV: 0,
     avgIRR: 0,
-    overallRiskIndex: 'Low (0%)',
+    overallRiskIndex: 'None (0%)',
     highYieldProjects: 0,
     totalProjectsCount: 0
   });
@@ -46,132 +161,43 @@ const Analytics = () => {
   const [sensitivityData, setSensitivityData] = useState([]);
   const [riskProfile, setRiskProfile] = useState([]);
 
-  const computeAnalyticsFromProjects = (projectList) => {
-    if (!projectList || projectList.length === 0) {
-      setMetrics({
-        portfolioNPV: 0,
-        avgIRR: 0,
-        overallRiskIndex: 'None (0%)',
-        highYieldProjects: 0,
-        totalProjectsCount: 0
-      });
-      setSensitivityData([]);
-      setRiskProfile([]);
-      return;
-    }
-
-    let totalNPV = 0;
-    let irrSum = 0;
-    let highYieldCount = 0;
-    let totalCapex = 0;
-    let totalOpex = 0;
-    let totalRevenue = 0;
-
-    projectList.forEach((proj) => {
-      const npv = Number(proj.npv || proj.financial_metrics?.npv || 0);
-      const irr = Number(proj.irr || proj.financial_metrics?.irr || 0);
-      const capex = Number(proj.initial_investment || proj.capex || 0);
-      const opex = Number(proj.annual_opex || proj.opex || 0);
-      const rev = Number(proj.annual_revenue || proj.revenue || 0);
-
-      totalNPV += npv;
-      irrSum += irr;
-      totalCapex += capex;
-      totalOpex += opex;
-      totalRevenue += rev;
-
-      if (irr >= 18 || (npv > 0 && rev > capex * 0.25)) {
-        highYieldCount += 1;
-      }
-    });
-
-    const avgIRRValue = projectList.length > 0 ? (irrSum / projectList.length).toFixed(1) : 0;
-    
-    // Evaluate risk index based on OPEX/Revenue ratio
-    const opexRatio = totalRevenue > 0 ? (totalOpex / totalRevenue) : 0.5;
-    let riskLevel = 'Low (15%)';
-    if (opexRatio > 0.7) riskLevel = 'High (68%)';
-    else if (opexRatio > 0.4) riskLevel = 'Moderate (34%)';
-
-    setMetrics({
-      portfolioNPV: totalNPV,
-      avgIRR: avgIRRValue,
-      overallRiskIndex: riskLevel,
-      highYieldProjects: highYieldCount,
-      totalProjectsCount: projectList.length
-    });
-
-    // Dynamic NPV Sensitivity Analysis Curve (-20% to +20% variation)
-    const baseNPV = totalNPV !== 0 ? totalNPV : (totalRevenue - totalOpex);
-    const variations = [
-      { label: '-20%', revFactor: 0.8, costFactor: 1.2 },
-      { label: '-10%', revFactor: 0.9, costFactor: 1.1 },
-      { label: 'Base (0%)', revFactor: 1.0, costFactor: 1.0 },
-      { label: '+10%', revFactor: 1.1, costFactor: 0.9 },
-      { label: '+20%', revFactor: 1.2, costFactor: 0.8 },
-    ];
-
-    const generatedSensitivity = variations.map((v) => ({
-      variation: v.label,
-      revenueImpact: Math.round(baseNPV * v.revFactor),
-      costImpact: Math.round(baseNPV * v.costFactor)
-    }));
-
-    setSensitivityData(generatedSensitivity);
-
-    // Dynamic Risk Exposure vs. Mitigation Data
-    const generatedRiskProfile = [
-      { 
-        category: 'Market Demand', 
-        riskScore: Math.min(85, Math.round(opexRatio * 80 + 20)), 
-        mitigationScore: 75 
-      },
-      { 
-        category: 'CapEx Inflation', 
-        riskScore: totalCapex > 1000000 ? 65 : 35, 
-        mitigationScore: 80 
-      },
-      { 
-        category: 'OpEx Fluctuation', 
-        riskScore: Math.min(90, Math.round(opexRatio * 90)), 
-        mitigationScore: 65 
-      },
-      { 
-        category: 'Regulatory Shift', 
-        riskScore: 30, 
-        mitigationScore: 85 
-      },
-    ];
-
-    setRiskProfile(generatedRiskProfile);
-  };
-
   const fetchAnalyticsData = useCallback(async () => {
     setLoading(true);
     setErrorMessage(null);
     try {
-      // 1. Attempt to fetch dedicated analytics endpoint if available
-      let analyticsRes = null;
+      let analyticsDataFound = false;
+
+      // 1. Attempt to fetch analytics directly from endpoint
       try {
-        analyticsRes = await API.get('analytics/overview/');
+        const analyticsRes = await API.get('analytics/overview/');
+        if (analyticsRes?.data && Object.keys(analyticsRes.data).length > 0) {
+          const data = analyticsRes.data;
+          if (data.metrics) setMetrics(data.metrics);
+          if (data.sensitivity) setSensitivityData(data.sensitivity);
+          if (data.risk_profile) setRiskProfile(data.risk_profile);
+          analyticsDataFound = true;
+        }
       } catch (e) {
         console.info('Global analytics overview endpoint unavailable, aggregating directly from user projects.');
       }
 
-      if (analyticsRes?.data && Object.keys(analyticsRes.data).length > 0) {
-        const data = analyticsRes.data;
-        if (data.metrics) setMetrics(data.metrics);
-        if (data.sensitivity) setSensitivityData(data.sensitivity);
-        if (data.risk_profile) setRiskProfile(data.risk_profile);
-      } else {
-        // 2. Fetch real user projects to dynamically aggregate analytics metrics
+      // 2. Fallback: Aggregate dynamically from user projects
+      if (!analyticsDataFound) {
         const response = await API.get('projects/');
-        const userProjects = Array.isArray(response.data) 
-          ? response.data 
-          : (response.data.results || []);
+        let userProjects = [];
+        
+        if (Array.isArray(response.data)) {
+          userProjects = response.data;
+        } else if (response.data && Array.isArray(response.data.results)) {
+          userProjects = response.data.results;
+        }
 
         setProjects(userProjects);
-        computeAnalyticsFromProjects(userProjects);
+        
+        const computed = computeAnalyticsFromProjects(userProjects);
+        setMetrics(computed.metrics);
+        setSensitivityData(computed.sensitivityData);
+        setRiskProfile(computed.riskProfile);
       }
     } catch (err) {
       console.error('Error loading user analytics data:', err);
@@ -196,7 +222,7 @@ const Analytics = () => {
 
   return (
     <div className="space-y-8">
-      {/* Server alert notification */}
+      {/* Error Banner */}
       {errorMessage && (
         <div className="flex items-center gap-3 p-4 bg-amber-500/10 border border-amber-500/20 text-amber-400 rounded-xl text-sm">
           <AlertCircle size={18} className="shrink-0" />
@@ -204,7 +230,7 @@ const Analytics = () => {
         </div>
       )}
 
-      {/* Header section */}
+      {/* Page Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-slate-50 tracking-tight">Feasibility Analytics & Risk</h1>
@@ -222,7 +248,7 @@ const Analytics = () => {
         </button>
       </div>
 
-      {/* Empty State when user has no active projects */}
+      {/* Empty State */}
       {metrics.totalProjectsCount === 0 ? (
         <div className="bg-slate-900 border border-slate-800 rounded-2xl p-10 text-center flex flex-col items-center justify-center space-y-4">
           <div className="p-4 bg-blue-500/10 text-blue-400 rounded-full">
@@ -244,7 +270,7 @@ const Analytics = () => {
         </div>
       ) : (
         <>
-          {/* Analytical KPI Cards Grid */}
+          {/* Key Metric Cards */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
             <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-sm">
               <div className="flex items-center justify-between text-slate-400 mb-2">
@@ -263,7 +289,7 @@ const Analytics = () => {
                 <Percent size={20} className="text-blue-400" />
               </div>
               <h3 className="text-2xl font-bold text-slate-50">
-                {typeof metrics.avgIRR === 'number' ? `${metrics.avgIRR}%` : metrics.avgIRR}
+                {typeof metrics.avgIRR === 'number' || !isNaN(Number(metrics.avgIRR)) ? `${metrics.avgIRR}%` : metrics.avgIRR}
               </h3>
               <p className="text-[11px] text-blue-400 mt-1">Weighted internal return rate</p>
             </div>
@@ -287,10 +313,10 @@ const Analytics = () => {
             </div>
           </div>
 
-          {/* Analytics Charts Grid */}
+          {/* Charts Grid */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             
-            {/* Sensitivity Analysis Chart */}
+            {/* NPV Sensitivity Analysis Chart */}
             <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 flex flex-col justify-between shadow-sm">
               <div className="flex items-center justify-between mb-6">
                 <div>
@@ -327,7 +353,7 @@ const Analytics = () => {
               </div>
             </div>
 
-            {/* Risk Evaluation Chart */}
+            {/* Risk Assessment Chart */}
             <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 flex flex-col justify-between shadow-sm">
               <div className="flex items-center justify-between mb-6">
                 <div>
@@ -358,7 +384,7 @@ const Analytics = () => {
 
           </div>
 
-          {/* Project List Breakdown */}
+          {/* Evaluated Projects Portfolio List */}
           {projects.length > 0 && (
             <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-sm">
               <div className="flex items-center justify-between mb-4">
@@ -372,32 +398,37 @@ const Analytics = () => {
               </div>
 
               <div className="divide-y divide-slate-800/60">
-                {projects.map((proj) => (
-                  <div 
-                    key={proj.id}
-                    onClick={() => navigate(`/projects/${proj.id}`)}
-                    className="py-3 flex items-center justify-between hover:bg-slate-800/30 px-3 rounded-xl transition-colors cursor-pointer"
-                  >
-                    <div>
-                      <h4 className="text-sm font-semibold text-slate-200">{proj.title}</h4>
-                      <span className="text-xs text-slate-400">{proj.category || 'Feasibility Study'}</span>
-                    </div>
-                    <div className="flex items-center gap-6 text-right">
+                {projects.map((proj) => {
+                  const npvVal = parseNum(proj.npv || proj.financial_metrics?.npv || proj.net_present_value);
+                  const irrVal = parseNum(proj.irr || proj.financial_metrics?.irr || proj.internal_rate_of_return);
+
+                  return (
+                    <div 
+                      key={proj.id || proj.pk}
+                      onClick={() => navigate(`/projects/${proj.id || proj.pk}`)}
+                      className="py-3 flex items-center justify-between hover:bg-slate-800/30 px-3 rounded-xl transition-colors cursor-pointer"
+                    >
                       <div>
-                        <div className="text-xs text-slate-400">NPV</div>
-                        <div className="text-sm font-bold text-emerald-400">
-                          {formatAmount(proj.npv || proj.financial_metrics?.npv || 0)}
+                        <h4 className="text-sm font-semibold text-slate-200">{proj.title || proj.name || 'Untitled Project'}</h4>
+                        <span className="text-xs text-slate-400">{proj.category || proj.industry || 'Feasibility Study'}</span>
+                      </div>
+                      <div className="flex items-center gap-6 text-right">
+                        <div>
+                          <div className="text-xs text-slate-400">NPV</div>
+                          <div className="text-sm font-bold text-emerald-400">
+                            {formatAmount(npvVal)}
+                          </div>
+                        </div>
+                        <div>
+                          <div className="text-xs text-slate-400">IRR</div>
+                          <div className="text-sm font-bold text-blue-400">
+                            {irrVal}%
+                          </div>
                         </div>
                       </div>
-                      <div>
-                        <div className="text-xs text-slate-400">IRR</div>
-                        <div className="text-sm font-bold text-blue-400">
-                          {proj.irr || proj.financial_metrics?.irr || '0'}%
-                        </div>
-                      </div>
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             </div>
           )}

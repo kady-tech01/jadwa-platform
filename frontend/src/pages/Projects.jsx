@@ -78,8 +78,6 @@ const Projects = () => {
       setProjects(Array.from(projectMap.values()));
     } catch (err) {
       console.warn('Backend endpoint offline. Showing local user data only.', err);
-      
-      // If backend fails/offline, render ONLY user local storage projects
       setProjects(localProjects);
     } finally {
       setLoading(false);
