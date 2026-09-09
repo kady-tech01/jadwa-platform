@@ -1,3 +1,4 @@
+import numpy_financial as npf
 from .cashflow import FinancialEngine
 
 
@@ -15,7 +16,10 @@ class SensitivityEngine:
         discount_rate = engine.discount_rate
 
         if base_df.empty or initial_inv == 0:
-            return {}
+            return {
+                'revenue_sensitivity': {},
+                'opex_sensitivity': {}
+            }
 
         variations = [-0.20, -0.10, 0.0, 0.10, 0.20]
         results = {
@@ -25,11 +29,26 @@ class SensitivityEngine:
 
         # Revenue Sensitivity Analysis
         for var in variations:
-            varied_cf = [
-                row['net_cash_flow'] * (1 + var) if var != 0 else row['net_cash_flow']
-                for _, row in base_df.iterrows()
-            ]
-            npv_val = np.npv(discount_rate, [-initial_inv] + varied_cf)
-            results['revenue_sensitivity'][f"{int(var*100)}%"] = round(npv_val, 2)
+            varied_cf = []
+            for _, row in base_df.iterrows():
+                rev_adjusted = row['revenue'] * (1 + var)
+                ebit_adj = rev_adjusted - row['opex']
+                tax_adj = max(0.0, ebit_adj * engine.tax_rate)
+                varied_cf.append(ebit_adj - tax_adj)
+
+            npv_val = npf.npv(discount_rate, [-initial_inv] + varied_cf)
+            results['revenue_sensitivity'][f"{int(var * 100):+d}%"] = round(float(npv_val), 2)
+
+        # OPEX Sensitivity Analysis
+        for var in variations:
+            varied_cf = []
+            for _, row in base_df.iterrows():
+                opex_adjusted = row['opex'] * (1 + var)
+                ebit_adj = row['revenue'] - opex_adjusted
+                tax_adj = max(0.0, ebit_adj * engine.tax_rate)
+                varied_cf.append(ebit_adj - tax_adj)
+
+            npv_val = npf.npv(discount_rate, [-initial_inv] + varied_cf)
+            results['opex_sensitivity'][f"{int(var * 100):+d}%"] = round(float(npv_val), 2)
 
         return results
