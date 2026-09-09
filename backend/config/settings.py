@@ -41,6 +41,7 @@ INSTALLED_APPS = [
     'apps.projects',
     'apps.analytics',
     'apps.feedback',
+    'apps.transactions',
 
 ]
 
