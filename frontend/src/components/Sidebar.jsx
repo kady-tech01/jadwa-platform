@@ -20,6 +20,9 @@ const Sidebar = ({ isCollapsed, setIsCollapsed }) => {
   const navigate = useNavigate();
   const [imageError, setImageError] = useState(false);
 
+  // Dynamic base URL for public assets (handles GitHub Pages & Localhost)
+  const logoUrl = `${process.env.PUBLIC_URL}/logo.png`;
+
   const toggleSidebar = () => {
     setIsCollapsed(!isCollapsed);
   };
@@ -65,7 +68,7 @@ const Sidebar = ({ isCollapsed, setIsCollapsed }) => {
         {isCollapsed ? <ChevronRight size={16} /> : <ChevronLeft size={16} />}
       </button>
 
-      {/* Brand Logo Header (Centered Stack Layout) */}
+      {/* Brand Logo Header */}
       <div className={`flex flex-col items-center justify-center py-6 border-b border-slate-800/80 shrink-0 transition-all ${
         isCollapsed ? 'px-2' : 'px-4'
       }`}>
@@ -75,7 +78,7 @@ const Sidebar = ({ isCollapsed, setIsCollapsed }) => {
         } ${imageError ? 'bg-blue-600 text-white font-bold text-xl' : 'bg-slate-800'}`}>
           {!imageError ? (
             <img 
-              src="/logo.png" 
+              src={logoUrl} 
               alt="JADWA Logo" 
               className="w-full h-full object-cover p-1.5 rounded-full"
               onError={() => setImageError(true)}

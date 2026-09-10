@@ -42,7 +42,7 @@ const Login = () => {
             <TrendingUp className="w-8 h-8 text-blue-500" />
           </div>
           <h1 className="text-2xl font-bold tracking-tight text-slate-50">
-            Elvolearn
+            JADWA
           </h1>
           <p className="text-xs text-slate-400 mt-1">
             Financial Analytics & Feasibility Management
