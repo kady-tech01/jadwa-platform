@@ -3,6 +3,7 @@ import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-d
 import { AuthProvider } from './context/AuthContext';
 import { ThemeProvider } from './context/ThemeContext';
 import { CurrencyProvider } from './context/CurrencyContext';
+import { ProjectProvider, useProject } from './context/ProjectContext';
 import PrivateRoute from './components/PrivateRoute';
 import Sidebar from './components/Sidebar';
 
@@ -18,6 +19,12 @@ import CashFlow from './pages/CashFlow';
 import Transactions from './pages/Transactions';
 import Settings from './pages/Settings';
 import Feedback from './pages/Feedback';
+
+// Wrapper for Transactions to extract selected project ID from context
+const TransactionsWrapper = () => {
+  const { selectedProjectId } = useProject();
+  return <Transactions projectId={selectedProjectId} />;
+};
 
 // Main App Layout for Protected Routes
 const AppLayout = ({ children }) => {
@@ -49,120 +56,122 @@ function App() {
   return (
     <ThemeProvider>
       <CurrencyProvider>
-        <Router>
-          <AuthProvider>
-            <Routes>
-              {/* Public Auth Routes */}
-              <Route path="/login" element={<Login />} />
-              <Route path="/register" element={<Register />} />
+        <ProjectProvider>
+          <Router>
+            <AuthProvider>
+              <Routes>
+                {/* Public Auth Routes */}
+                <Route path="/login" element={<Login />} />
+                <Route path="/register" element={<Register />} />
 
-              {/* Protected App Routes */}
-              <Route
-                path="/dashboard"
-                element={
-                  <PrivateRoute>
-                    <AppLayout>
-                      <Dashboard />
-                    </AppLayout>
-                  </PrivateRoute>
-                }
-              />
-              <Route
-                path="/projects"
-                element={
-                  <PrivateRoute>
-                    <AppLayout>
-                      <Projects />
-                    </AppLayout>
-                  </PrivateRoute>
-                }
-              />
-              <Route
-                path="/projects/new"
-                element={
-                  <PrivateRoute>
-                    <AppLayout>
-                      <ProjectForm />
-                    </AppLayout>
-                  </PrivateRoute>
-                }
-              />
-              <Route
-                path="/projects/:id"
-                element={
-                  <PrivateRoute>
-                    <AppLayout>
-                      <ProjectDetails />
-                    </AppLayout>
-                  </PrivateRoute>
-                }
-              />
-              <Route
-                path="/projects/:id/edit"
-                element={
-                  <PrivateRoute>
-                    <AppLayout>
-                      <ProjectForm />
-                    </AppLayout>
-                  </PrivateRoute>
-                }
-              />
-              <Route
-                path="/analytics"
-                element={
-                  <PrivateRoute>
-                    <AppLayout>
-                      <Analytics />
-                    </AppLayout>
-                  </PrivateRoute>
-                }
-              />
-              <Route
-                path="/cashflow"
-                element={
-                  <PrivateRoute>
-                    <AppLayout>
-                      <CashFlow />
-                    </AppLayout>
-                  </PrivateRoute>
-                }
-              />
-              <Route
-                path="/transactions"
-                element={
-                  <PrivateRoute>
-                    <AppLayout>
-                      <Transactions />
-                    </AppLayout>
-                  </PrivateRoute>
-                }
-              />
-              <Route
-                path="/feedback"
-                element={
-                  <PrivateRoute>
-                    <AppLayout>
-                      <Feedback />
-                    </AppLayout>
-                  </PrivateRoute>
-                }
-              />
-              <Route
-                path="/settings"
-                element={
-                  <PrivateRoute>
-                    <AppLayout>
-                      <Settings />
-                    </AppLayout>
-                  </PrivateRoute>
-                }
-              />
+                {/* Protected App Routes */}
+                <Route
+                  path="/dashboard"
+                  element={
+                    <PrivateRoute>
+                      <AppLayout>
+                        <Dashboard />
+                      </AppLayout>
+                    </PrivateRoute>
+                  }
+                />
+                <Route
+                  path="/projects"
+                  element={
+                    <PrivateRoute>
+                      <AppLayout>
+                        <Projects />
+                      </AppLayout>
+                    </PrivateRoute>
+                  }
+                />
+                <Route
+                  path="/projects/new"
+                  element={
+                    <PrivateRoute>
+                      <AppLayout>
+                        <ProjectForm />
+                      </AppLayout>
+                    </PrivateRoute>
+                  }
+                />
+                <Route
+                  path="/projects/:id"
+                  element={
+                    <PrivateRoute>
+                      <AppLayout>
+                        <ProjectDetails />
+                      </AppLayout>
+                    </PrivateRoute>
+                  }
+                />
+                <Route
+                  path="/projects/:id/edit"
+                  element={
+                    <PrivateRoute>
+                      <AppLayout>
+                        <ProjectForm />
+                      </AppLayout>
+                    </PrivateRoute>
+                  }
+                />
+                <Route
+                  path="/analytics"
+                  element={
+                    <PrivateRoute>
+                      <AppLayout>
+                        <Analytics />
+                      </AppLayout>
+                    </PrivateRoute>
+                  }
+                />
+                <Route
+                  path="/cashflow"
+                  element={
+                    <PrivateRoute>
+                      <AppLayout>
+                        <CashFlow />
+                      </AppLayout>
+                    </PrivateRoute>
+                  }
+                />
+                <Route
+                  path="/transactions"
+                  element={
+                    <PrivateRoute>
+                      <AppLayout>
+                        <TransactionsWrapper />
+                      </AppLayout>
+                    </PrivateRoute>
+                  }
+                />
+                <Route
+                  path="/feedback"
+                  element={
+                    <PrivateRoute>
+                      <AppLayout>
+                        <Feedback />
+                      </AppLayout>
+                    </PrivateRoute>
+                  }
+                />
+                <Route
+                  path="/settings"
+                  element={
+                    <PrivateRoute>
+                      <AppLayout>
+                        <Settings />
+                      </AppLayout>
+                    </PrivateRoute>
+                  }
+                />
 
-              {/* Default Catch-All Route */}
-              <Route path="*" element={<Navigate to="/dashboard" replace />} />
-            </Routes>
-          </AuthProvider>
-        </Router>
+                {/* Default Catch-All Route */}
+                <Route path="*" element={<Navigate to="/dashboard" replace />} />
+              </Routes>
+            </AuthProvider>
+          </Router>
+        </ProjectProvider>
       </CurrencyProvider>
     </ThemeProvider>
   );

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, useContext } from 'react';
 import { 
   ArrowUpRight, 
   ArrowDownLeft, 
@@ -18,6 +18,8 @@ import {
 } from 'lucide-react';
 import API from '../services/api';
 import { useCurrency } from '../context/CurrencyContext';
+import { useProject } from '../context/ProjectContext';
+import { AuthContext } from '../context/AuthContext';
 
 const DEFAULT_CATEGORIES = ['Operations', 'Marketing', 'Development', 'Payroll', 'Funding', 'Equipment', 'Services'];
 
@@ -30,8 +32,20 @@ const INITIAL_FORM_STATE = {
   date: new Date().toISOString().split('T')[0],
 };
 
-const Transactions = ({ projectId }) => {
+const Transactions = ({ projectId: propProjectId }) => {
+  const { user } = useContext(AuthContext); // Logged-in user context
   const { formatAmount } = useCurrency();
+  const { selectedProjectId, selectProject } = useProject();
+  
+  // Effective project ID comes from prop or context
+  const activeProjectId = propProjectId || selectedProjectId;
+
+  // Key to isolate user storage locally if API is offline
+  const userStorageKey = user ? `user_${user.username || user.id}_transactions` : 'custom_transactions';
+
+  const [projectsList, setProjectsList] = useState([]);
+  const [loadingProjects, setLoadingProjects] = useState(false);
+
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [deletingId, setDeletingId] = useState(null);
@@ -52,35 +66,67 @@ const Transactions = ({ projectId }) => {
   const [isEditing, setIsEditing] = useState(false);
   const [formData, setFormData] = useState(INITIAL_FORM_STATE);
 
-  // Fetch transactions from backend
+  // Fetch projects list if no project is active
+  useEffect(() => {
+    if (!activeProjectId) {
+      const fetchProjects = async () => {
+        setLoadingProjects(true);
+        try {
+          const response = await API.get('projects/');
+          const data = Array.isArray(response.data) ? response.data : (response.data?.results || []);
+          setProjectsList(data);
+        } catch (err) {
+          console.error('Failed to fetch projects list:', err);
+        } finally {
+          setLoadingProjects(false);
+        }
+      };
+      fetchProjects();
+    }
+  }, [activeProjectId]);
+
+  // Fetch transactions scoped to active project & user
   const fetchTransactions = useCallback(async () => {
-    if (!projectId) {
+    if (!activeProjectId) {
       setTransactions([]);
       return;
     }
 
     setLoading(true);
     setErrorMessage(null);
+
+    // Retrieve user-specific local backup
+    const localTxRaw = JSON.parse(localStorage.getItem(userStorageKey) || '[]');
+    const localTx = localTxRaw.filter((tx) => String(tx.project) === String(activeProjectId));
+
     try {
       const response = await API.get(`transactions/`, {
-        params: { project: projectId }
+        params: { project: activeProjectId }
       });
 
+      let fetchedData = [];
       if (Array.isArray(response.data)) {
-        setTransactions(response.data);
+        fetchedData = response.data;
       } else if (response.data?.results && Array.isArray(response.data.results)) {
-        setTransactions(response.data.results);
-      } else {
-        setTransactions([]);
+        fetchedData = response.data.results;
       }
+
+      // Merge backend and local user data without duplicates
+      const txMap = new Map();
+      [...localTx, ...fetchedData].forEach((tx) => {
+        if (tx && tx.id) {
+          txMap.set(String(tx.id), tx);
+        }
+      });
+
+      setTransactions(Array.from(txMap.values()));
     } catch (err) {
-      console.error('Failed to fetch transactions:', err);
-      setErrorMessage('Could not load transactions. Please verify backend service connection.');
-      setTransactions([]);
+      console.warn('Backend transactions API offline. Loading local user data.', err);
+      setTransactions(localTx);
     } finally {
       setLoading(false);
     }
-  }, [projectId]);
+  }, [activeProjectId, userStorageKey]);
 
   useEffect(() => {
     fetchTransactions();
@@ -122,8 +168,8 @@ const Transactions = ({ projectId }) => {
   // Handle Save (Create or Update)
   const handleSaveTransaction = async (e) => {
     e.preventDefault();
-    if (!projectId) {
-      setErrorMessage('Please select a valid project before recording entries.');
+    if (!activeProjectId) {
+      setErrorMessage('Please select a project before recording entries.');
       return;
     }
 
@@ -138,7 +184,7 @@ const Transactions = ({ projectId }) => {
     setSuccessMessage(null);
 
     const payload = {
-      project: projectId,
+      project: activeProjectId,
       title: formData.title.trim(),
       category: formData.category.trim() || 'Operations',
       type: formData.type,
@@ -149,22 +195,54 @@ const Transactions = ({ projectId }) => {
     try {
       if (isEditing) {
         const response = await API.put(`transactions/${formData.id}/`, payload);
+        const updated = response.data;
         setTransactions((prev) =>
-          prev.map((tx) => (tx.id === formData.id ? response.data : tx))
+          prev.map((tx) => (tx.id === formData.id ? updated : tx))
         );
-        setSuccessMessage('Transaction entry updated successfully!');
+        
+        // Sync local storage
+        const localTx = JSON.parse(localStorage.getItem(userStorageKey) || '[]');
+        const updatedLocal = localTx.map((t) => (String(t.id) === String(formData.id) ? updated : t));
+        localStorage.setItem(userStorageKey, JSON.stringify(updatedLocal));
+
+        setSuccessMessage('Transaction updated successfully!');
       } else {
         const response = await API.post('transactions/', payload);
-        setTransactions((prev) => [response.data, ...prev]);
-        setSuccessMessage('Transaction entry added successfully!');
+        const created = response.data;
+        setTransactions((prev) => [created, ...prev]);
+
+        // Sync local storage
+        const localTx = JSON.parse(localStorage.getItem(userStorageKey) || '[]');
+        localStorage.setItem(userStorageKey, JSON.stringify([created, ...localTx]));
+
+        setSuccessMessage('Transaction added successfully!');
       }
 
       setShowModal(false);
       setFormData(INITIAL_FORM_STATE);
     } catch (err) {
-      console.error('Failed to save transaction:', err);
-      const serverErr = err.response?.data ? JSON.stringify(err.response.data) : 'Network or server error.';
-      setErrorMessage(`Failed to save transaction: ${serverErr}`);
+      console.warn('API transaction request failed, saving locally...', err);
+      // Fallback local creation with user isolation
+      const newTx = {
+        ...payload,
+        id: isEditing ? formData.id : Date.now(),
+      };
+
+      const localTx = JSON.parse(localStorage.getItem(userStorageKey) || '[]');
+      const updatedLocal = isEditing
+        ? localTx.map((t) => (String(t.id) === String(formData.id) ? newTx : t))
+        : [newTx, ...localTx];
+
+      localStorage.setItem(userStorageKey, JSON.stringify(updatedLocal));
+      
+      setTransactions((prev) =>
+        isEditing
+          ? prev.map((t) => (String(t.id) === String(formData.id) ? newTx : t))
+          : [newTx, ...prev]
+      );
+
+      setShowModal(false);
+      setSuccessMessage('Transaction saved locally.');
     } finally {
       setSaving(false);
     }
@@ -172,7 +250,7 @@ const Transactions = ({ projectId }) => {
 
   // Handle Delete
   const handleDeleteTransaction = async (id) => {
-    if (!window.confirm('Are you sure you want to delete this record?')) return;
+    if (!window.confirm('Are you sure you want to delete this transaction entry?')) return;
 
     setDeletingId(id);
     setErrorMessage(null);
@@ -180,14 +258,19 @@ const Transactions = ({ projectId }) => {
 
     try {
       await API.delete(`transactions/${id}/`);
-      setTransactions((prev) => prev.filter((tx) => tx.id !== id));
-      setSuccessMessage('Transaction entry deleted.');
     } catch (err) {
-      console.error('Failed to delete transaction:', err);
-      setErrorMessage('Failed to delete transaction entry.');
-    } finally {
-      setDeletingId(null);
+      console.warn('API delete failed; removing transaction locally.', err);
     }
+
+    // Clean up local storage
+    const localTx = JSON.parse(localStorage.getItem(userStorageKey) || '[]');
+    const updatedLocal = localTx.filter((tx) => String(tx.id) !== String(id));
+    localStorage.setItem(userStorageKey, JSON.stringify(updatedLocal));
+
+    // Update state
+    setTransactions((prev) => prev.filter((tx) => String(tx.id) !== String(id)));
+    setSuccessMessage('Transaction deleted.');
+    setDeletingId(null);
   };
 
   // Dynamic Categories List for Filter
@@ -218,7 +301,7 @@ const Transactions = ({ projectId }) => {
       });
   }, [transactions, searchTerm, typeFilter, categoryFilter, sortBy]);
 
-  // Aggregate Metrics for Analysis
+  // Metrics
   const metrics = useMemo(() => {
     const totalIncome = transactions
       .filter((t) => t.type === 'income')
@@ -255,20 +338,42 @@ const Transactions = ({ projectId }) => {
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.setAttribute('href', url);
-    link.setAttribute('download', `project_${projectId}_transactions_${new Date().toISOString().split('T')[0]}.csv`);
+    link.setAttribute('download', `user_${user?.username || 'data'}_project_${activeProjectId}_transactions.csv`);
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
   };
 
-  if (!projectId) {
+  // If no project is selected, render project picker fallback
+  if (!activeProjectId) {
     return (
-      <div className="flex flex-col items-center justify-center min-h-[50vh] p-8 text-center bg-slate-900 border border-slate-800 rounded-2xl">
-        <FolderKanban className="w-12 h-12 text-slate-600 mb-3" />
-        <h3 className="text-lg font-bold text-slate-200">No Project Selected</h3>
-        <p className="text-sm text-slate-400 mt-1 max-w-md">
-          Please select or open a project to record financial inflows and outflows for study and analysis.
-        </p>
+      <div className="flex flex-col items-center justify-center min-h-[50vh] p-8 text-center bg-slate-900 border border-slate-800 rounded-2xl space-y-4">
+        <FolderKanban className="w-12 h-12 text-slate-600" />
+        <div>
+          <h3 className="text-lg font-bold text-slate-200">No Project Selected</h3>
+          <p className="text-sm text-slate-400 mt-1 max-w-md">
+            Select an active project below to start recording and analyzing its financial operations.
+          </p>
+        </div>
+
+        {loadingProjects ? (
+          <Loader2 className="w-6 h-6 text-blue-500 animate-spin" />
+        ) : (
+          <div className="w-full max-w-xs pt-2">
+            <select
+              defaultValue=""
+              onChange={(e) => selectProject(e.target.value)}
+              className="w-full bg-slate-800 border border-slate-700 text-slate-200 px-4 py-2.5 rounded-xl text-sm focus:outline-none focus:border-blue-500 cursor-pointer"
+            >
+              <option value="" disabled>-- Select a Project --</option>
+              {projectsList.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.title || p.name || `Project #${p.id}`}
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
       </div>
     );
   }
@@ -277,7 +382,7 @@ const Transactions = ({ projectId }) => {
     return (
       <div className="flex flex-col items-center justify-center min-h-[50vh] space-y-4">
         <Loader2 className="w-10 h-10 text-blue-500 animate-spin" />
-        <p className="text-sm text-slate-400 font-medium">Loading financial ledger...</p>
+        <p className="text-sm text-slate-400 font-medium">Loading project ledger...</p>
       </div>
     );
   }
@@ -291,7 +396,7 @@ const Transactions = ({ projectId }) => {
             <AlertCircle size={18} className="shrink-0" />
             <span>{errorMessage}</span>
           </div>
-          <button onClick={() => setErrorMessage(null)} className="text-amber-400 hover:text-amber-200">
+          <button onClick={() => setErrorMessage(null)} className="text-amber-400 hover:text-amber-200 cursor-pointer">
             <X size={16} />
           </button>
         </div>
@@ -303,7 +408,7 @@ const Transactions = ({ projectId }) => {
             <CheckCircle2 size={18} className="shrink-0" />
             <span>{successMessage}</span>
           </div>
-          <button onClick={() => setSuccessMessage(null)} className="text-emerald-400 hover:text-emerald-200">
+          <button onClick={() => setSuccessMessage(null)} className="text-emerald-400 hover:text-emerald-200 cursor-pointer">
             <X size={16} />
           </button>
         </div>
@@ -314,7 +419,7 @@ const Transactions = ({ projectId }) => {
         <div>
           <h1 className="text-2xl font-bold text-slate-50 tracking-tight">Project Financial Ledger</h1>
           <p className="text-sm text-slate-400 mt-1">
-            Log financial operations to drive real-time financial tracking and feasibility analysis.
+            Log, update, and analyze financial inflows and outflows.
           </p>
         </div>
         <div className="flex items-center gap-3">
@@ -343,7 +448,7 @@ const Transactions = ({ projectId }) => {
             <Receipt size={20} className="text-blue-400" />
           </div>
           <h3 className="text-2xl font-bold text-slate-50">{metrics.totalCount}</h3>
-          <p className="text-[11px] text-slate-400 mt-1">Recorded financial entries</p>
+          <p className="text-[11px] text-slate-400 mt-1">Total recorded entries</p>
         </div>
 
         <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-sm">
@@ -361,7 +466,7 @@ const Transactions = ({ projectId }) => {
             <ArrowUpRight size={20} className="text-rose-400" />
           </div>
           <h3 className="text-2xl font-bold text-rose-400">{formatAmount(metrics.totalExpense)}</h3>
-          <p className="text-[11px] text-rose-400/80 mt-1">Operational expenditures</p>
+          <p className="text-[11px] text-rose-400/80 mt-1">Operational expenses</p>
         </div>
 
         <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-sm">
@@ -372,17 +477,17 @@ const Transactions = ({ projectId }) => {
           <h3 className={`text-2xl font-bold ${metrics.netBalance >= 0 ? 'text-blue-400' : 'text-rose-400'}`}>
             {formatAmount(metrics.netBalance)}
           </h3>
-          <p className="text-[11px] text-purple-400 mt-1">Net cash balance</p>
+          <p className="text-[11px] text-purple-400 mt-1">Net cash position</p>
         </div>
       </div>
 
-      {/* Controls Bar */}
+      {/* Control Bar */}
       <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 flex flex-col lg:flex-row items-center justify-between gap-4 shadow-sm">
         <div className="relative w-full lg:w-80">
           <Search size={18} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-500" />
           <input 
             type="text" 
-            placeholder="Search title or category..."
+            placeholder="Search by title or category..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             className="w-full pl-10 pr-4 py-2 bg-slate-800 border border-slate-700 rounded-xl text-slate-100 text-sm focus:outline-none focus:border-blue-500 placeholder:text-slate-500"
@@ -447,7 +552,7 @@ const Transactions = ({ projectId }) => {
       {/* Main Table */}
       <div className="bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden shadow-sm">
         <div className="p-6 border-b border-slate-800 flex items-center justify-between">
-          <h2 className="text-base font-bold text-slate-100">Recorded Transactions</h2>
+          <h2 className="text-base font-bold text-slate-100">Transaction Log</h2>
           <button 
             onClick={handleExportCSV}
             className="inline-flex items-center gap-2 text-xs font-medium text-slate-300 hover:text-white bg-slate-800 hover:bg-slate-700 px-3 py-1.5 rounded-lg transition-colors border border-slate-700 cursor-pointer disabled:opacity-50"
@@ -527,7 +632,7 @@ const Transactions = ({ projectId }) => {
                 <tr>
                   <td colSpan={6} className="px-6 py-12 text-center text-slate-500 text-sm">
                     No transactions recorded matching your search.<br />
-                    Click <strong className="text-slate-300">"Add Transaction"</strong> above to input data for study and analysis.
+                    Click <strong className="text-slate-300">"Add Transaction"</strong> above to input a new record.
                   </td>
                 </tr>
               )}
@@ -559,7 +664,7 @@ const Transactions = ({ projectId }) => {
                   type="text" 
                   name="title"
                   required
-                  placeholder="e.g., Raw Materials, Software License"
+                  placeholder="e.g., Raw Materials, Hosting"
                   value={formData.title}
                   onChange={handleInputChange}
                   className="w-full px-3.5 py-2 bg-slate-800 border border-slate-700 rounded-xl text-slate-100 text-sm focus:outline-none focus:border-blue-500"
@@ -594,7 +699,7 @@ const Transactions = ({ projectId }) => {
                 </div>
               </div>
 
-              {/* Category Quick Tags */}
+              {/* Quick Tags */}
               <div className="flex flex-wrap gap-1.5 pt-1">
                 {DEFAULT_CATEGORIES.map((cat) => (
                   <button

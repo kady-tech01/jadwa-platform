@@ -16,6 +16,7 @@ import {
   XCircle
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import { useCurrency } from '../context/CurrencyContext';
 import API from '../api/axios';
 
 // Helper to normalize Django snake_case & React camelCase
@@ -43,6 +44,8 @@ const formatProject = (proj) => {
 
 const Projects = () => {
   const navigate = useNavigate();
+  const { formatAmount } = useCurrency();
+
   const [projects, setProjects] = useState([]);
   const [loading, setLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState(null);
@@ -202,12 +205,12 @@ const Projects = () => {
         </div>
         <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4">
           <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider block">Total CapEx / Investment</span>
-          <h3 className="text-2xl font-bold text-blue-400 mt-1">${totalInvestment.toLocaleString()}</h3>
+          <h3 className="text-2xl font-bold text-blue-400 mt-1">{formatAmount(totalInvestment)}</h3>
         </div>
         <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4">
           <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider block">Combined Portfolio NPV</span>
           <h3 className={`text-2xl font-bold mt-1 ${totalNPV >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
-            ${totalNPV.toLocaleString()}
+            {formatAmount(totalNPV)}
           </h3>
         </div>
       </div>
@@ -325,13 +328,13 @@ const Projects = () => {
                     <div>
                       <span className="text-[10px] uppercase font-semibold text-slate-500 block">CapEx</span>
                       <span className="text-xs font-bold text-slate-200 flex items-center justify-center mt-0.5">
-                        ${Number(project.initialInvestment || 0).toLocaleString()}
+                        {formatAmount(project.initialInvestment || 0)}
                       </span>
                     </div>
                     <div>
                       <span className="text-[10px] uppercase font-semibold text-slate-500 block">NPV</span>
                       <span className={`text-xs font-bold mt-0.5 block ${isFeasible ? 'text-emerald-400' : 'text-rose-400'}`}>
-                        ${npvValue.toLocaleString()}
+                        {formatAmount(npvValue)}
                       </span>
                     </div>
                     <div>
