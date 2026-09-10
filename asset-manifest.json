@@ -1,0 +1,15 @@
+{
+  "files": {
+    "main.css": "/jadwa-platform/static/css/main.6ecf0c00.css",
+    "main.js": "/jadwa-platform/static/js/main.b78b7fc9.js",
+    "static/js/453.3852239a.chunk.js": "/jadwa-platform/static/js/453.3852239a.chunk.js",
+    "index.html": "/jadwa-platform/index.html",
+    "main.6ecf0c00.css.map": "/jadwa-platform/static/css/main.6ecf0c00.css.map",
+    "main.b78b7fc9.js.map": "/jadwa-platform/static/js/main.b78b7fc9.js.map",
+    "453.3852239a.chunk.js.map": "/jadwa-platform/static/js/453.3852239a.chunk.js.map"
+  },
+  "entrypoints": [
+    "static/css/main.6ecf0c00.css",
+    "static/js/main.b78b7fc9.js"
+  ]
+}
