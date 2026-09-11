@@ -340,7 +340,7 @@ const Dashboard = () => {
               <div className="flex items-center justify-between mb-4">
                 <div>
                   <h2 className="text-base font-bold text-slate-100">Capital Distribution</h2>
-                  <p className="text-xs text-slate-400">Budget allocation across sectors</p>
+                  <p className="text-xs text-slate-400">Budget allocation across sectors </p>
                 </div>
                 <PieChartIcon size={18} className="text-slate-400" />
               </div>
