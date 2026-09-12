@@ -1,34 +1,40 @@
-# 📊 Jadwa Platform 
-An end-to-end, data-driven web application designed to automate financial feasibility studies, cash flow forecasting, scenario/sensitivity analysis, and investment risk assessment.
+# 📊 Jadwa Platform
 
----
+**Jadwa** is a full-stack financial feasibility platform that helps entrepreneurs and project owners evaluate business ideas through financial modeling, forecasting, and interactive analysis.
 
-## 🚀 Overview
+## 🚀 Features
 
-**Jadwa Platform** combines robust financial modeling with modern data analysis tools. It helps entrepreneurs, financial analysts, and small business owners generate comprehensive feasibility studies, analyze investment risks, and make data-driven decisions through interactive visualizations and automated calculations.
+* 📁 Project management
+* 💰 NPV, IRR, ROI & Payback Period
+* 📈 Cash flow forecasting
+* 🎯 Sensitivity & scenario analysis
+* 📊 Interactive dashboards
+* 🌍 Multi-currency support
+* 📄 PDF & Excel reports
+* 🔐 JWT authentication and user data isolation
 
----
 
 ## 🛠️ Tech Stack
 
-### **Backend**
-- **Framework:** Python 3.10+ / Django 5.x / Django REST Framework (DRF)
-- **Data Analysis & Modeling:** Pandas, NumPy, SciPy
-- **Database:** MariaDB (Relational Data & JSON Storage)
-- **Authentication:** JWT (JSON Web Tokens via SimpleJWT)
+**Backend:** Python, Django, Django REST Framework, Pandas, NumPy, SciPy, NumPy Financial, JWT
 
-### **Frontend**
-- **Framework:** React.js (Single Page Application)
-- **State & HTTP:** Axios / React Query
-- **Styling:** Tailwind CSS / Material UI
-- **Data Visualization:** Recharts / Chart.js
+**Frontend:** React.js, Axios, Tailwind CSS, Recharts
 
----
+**Database:** MySQL
 
-## 💡 Key Features
+**Reports:** PDF, Excel, OpenPyXL
 
-1. **Automated Feasibility Engine:** Calculates Net Present Value (NPV), Internal Rate of Return (IRR), Return on Investment (ROI), Payback Period, and Break-Even Point.
-2. **Data Analysis & Sensitivity Modeling:** Uses Pandas/NumPy to simulate revenue/expense variations (-20% to +20%) and evaluate risk scores.
-3. **Multi-Currency Support:** Handles DZD, USD, EUR, and other custom currencies.
-4. **Interactive Dashboard:** Dynamic charts and breakdown tables for CAPEX, OPEX, and cash flow projections.
-5. **PDF & Excel Reports:** Exports professional, ready-to-present financial statements and executive summaries.
+## 🎯 Goal
+
+Jadwa aims to turn project data into clear financial insights, helping users understand profitability, investment recovery, cash flow, and financial risk before making investment decisions.
+
+## 🔮 Future Development
+
+* AI-assisted financial recommendations
+* Advanced scenario modeling
+* Market & exchange-rate data
+* Enhanced risk analysis
+* Project comparison
+* Mobile application
+
+**Jadwa — Turning project data into financial insight**
